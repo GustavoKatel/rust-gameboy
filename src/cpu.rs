@@ -235,6 +235,107 @@ impl GBCpu {
                 self.pc += 2;
             }
 
+            // this pattern match the case LD 8bits,8bits
+            0x40 ... 0x4F |
+            0x50 ... 0x5F |
+            0x60 ... 0x6F |
+            0x70 ... 0x7F => {
+
+                let o8 : u8 = match byte & 0x0F {
+                    0x0 | 0x8 => (self.BC >> 8) as u8, // B
+                    0x1 | 0x9 => self.BC as u8, // C
+                    0x2 | 0xA => (self.DE >> 8) as u8, // D
+                    0x3 | 0xB => self.DE as u8, // E
+                    0x4 | 0xC => (self.HL >> 8) as u8, // H
+                    0x5 | 0xD => self.HL as u8, // L
+                    0x6 | 0xE => self.mem.get(self.HL as usize), // (HL)
+                    0x7 | 0xF => (self.AF >> 8) as u8, // A
+                    _ => 0x0,
+                };
+
+                match (byte & 0xF0) >> 4 {
+                    0x4 => {
+                        if byte & 0x0F < 0x8 {
+
+                            self.BC &= 0x00FF;
+                            self.BC |= (o8 as u16) << 8;
+
+                        } else {
+                            self.BC &= 0xFF00;
+                            self.BC |= o8 as u16;
+                        }
+                    },
+                    0x5 => {
+                        if byte & 0x0F < 0x8 {
+
+                            self.DE &= 0x00FF;
+                            self.DE |= (o8 as u16) << 8;
+
+                        } else {
+                            self.DE &= 0xFF00;
+                            self.DE |= o8 as u16;
+                        }
+                    },
+
+                    0x6 => {
+                        if byte & 0x0F < 0x8 {
+
+                            self.HL &= 0x00FF;
+                            self.HL |= (o8 as u16) << 8;
+
+                        } else {
+                            self.HL &= 0xFF00;
+                            self.HL |= o8 as u16;
+                        }
+                    },
+
+                    0x7 => {
+                        if byte & 0x0F < 0x8 {
+
+                            self.mem.put(self.HL as usize, o8);
+
+                        } else {
+                            self.AF &= 0x00FF;
+                            self.AF |= (o8 as u16) << 8;
+                        }
+                    },
+
+                    _ => {},
+
+                };
+
+                self.pc += 1;
+
+            },
+
+            // LDH (a8),A
+            // direct address or use the offset 0xFF00?
+            0xE0 => {
+                let b8 = self.get_next_8();
+                self.mem.put(b8 as usize, (self.AF >> 8) as u8 );
+                self.pc += 2;
+            },
+
+            // LDH A,(a8)
+            // direct address or use the offset 0xFF00?
+            0xF0 => {
+                self.AF &= 0x00FF;
+                let b8 = self.get_next_8();
+                self.AF |= (self.mem.get(b8 as usize) as u16) << 8;
+                self.pc += 2;
+            },
+
+            0xE2 => {
+                self.mem.put(( self.BC as u8 ) as usize, (self.AF >> 8) as u8 );
+                self.pc += 2;
+            },
+
+            0xF2 => {
+                self.AF &= 0x00FF;
+                self.AF |= (self.mem.get((self.BC as u8) as usize) as u16) << 8;
+                self.pc += 2;
+            },
+
             _ => panic!("Unknown LD variant"),
         }
 
