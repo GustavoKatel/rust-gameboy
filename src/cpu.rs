@@ -67,7 +67,7 @@ impl GBCpu {
 
             0x76 => self.op_halt(&byte),
 
-            _ => panic!("Unknown OP"),
+            op => panic!("Unknown OP 0x{:04X}", op),
         }
 
     }
@@ -334,6 +334,19 @@ impl GBCpu {
                 self.AF &= 0x00FF;
                 self.AF |= (self.mem.get((self.BC as u8) as usize) as u16) << 8;
                 self.pc += 2;
+            },
+
+            0xEA => {
+                let b16 = self.get_next_16();
+                self.mem.put( b16 as usize, (self.AF >> 8) as u8 );
+                self.pc += 3;
+            },
+
+            0xFA => {
+                self.AF &= 0x00FF;
+                let b16 = self.get_next_16();
+                self.AF |= (self.mem.get( b16 as usize) as u16) << 8;
+                self.pc += 3;
             },
 
             _ => panic!("Unknown LD variant"),

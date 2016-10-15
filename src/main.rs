@@ -28,5 +28,6 @@ fn main() {
     println!("0x{:02X}", cpu.get_sp());
     println!("0x{:02X}", cpu.get_mem_ref().get(0x07 as usize));
 
+    cpu.tick();
 
 }
