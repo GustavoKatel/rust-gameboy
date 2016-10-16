@@ -10,6 +10,7 @@ pub struct GBCpu {
     BC: u16, // reg 16bits
     DE: u16, // reg 16bits
     HL: u16, // reg 16bits
+    stop_flag: bool, // stop flag used by the stop instruction
 }
 
 impl GBCpu {
@@ -23,6 +24,7 @@ impl GBCpu {
             BC: 0x0,
             DE: 0x0,
             HL: 0x0,
+            stop_flag: false,
         }
     }
 
@@ -51,7 +53,7 @@ impl GBCpu {
         match byte & 0xFF {
             0x0 => self.op_nop(&byte),
 
-            // LD
+            // LD *
             0x01 | 0x11 | 0x21 | 0x31 |
             0x02 | 0x12 | 0x22 | 0x32 |
             0x06 | 0x16 | 0x26 | 0x36 |
@@ -67,15 +69,25 @@ impl GBCpu {
 
             0x76 => self.op_halt(&byte),
 
+            0x10 => self.op_stop(&byte),
+
             op => panic!("Unknown OP 0x{:04X}", op),
         }
 
     }
 
-    fn op_nop(&self, _: &u8) {
+    fn op_stop(&mut self, _: &u8) {
+        self.stop_flag = true;
+
+        self.pc += 1;
     }
 
-    fn op_halt(&self, _: &u8) {
+    fn op_nop(&mut self, _: &u8) {
+        self.pc += 1;
+    }
+
+    fn op_halt(&mut self, _: &u8) {
+        self.pc += 1;
     }
 
     fn get_next_8(&self) -> u8 {

@@ -3,6 +3,7 @@ mod mem;
 
 use std::io::prelude::*;
 use std::fs::File;
+use std::{thread, time};
 
 use cpu::GBCpu;
 use mem::GBMem;
@@ -23,11 +24,16 @@ fn main() {
 
     let mut cpu = GBCpu::new(mem);
 
-    cpu.tick();
+    let timeout = time::Duration::from_millis(16);
 
-    println!("0x{:02X}", cpu.get_sp());
-    println!("0x{:02X}", cpu.get_mem_ref().get(0x07 as usize));
+    'main_loop: loop {
+        cpu.tick();
 
-    cpu.tick();
+        println!("SP: 0x{:04X}", cpu.get_sp());
+        println!("PC: 0x{:04X}", cpu.get_pc());
+
+        thread::sleep(timeout);
+
+    }
 
 }
