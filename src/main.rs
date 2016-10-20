@@ -26,7 +26,8 @@ fn main() {
 
     let timeout = time::Duration::from_millis(16);
 
-    'main_loop: loop {
+    // 'main_loop: loop {
+    for _ in 0..2 {
         cpu.step();
 
         println!("SP: 0x{:04X}", cpu.get_sp());

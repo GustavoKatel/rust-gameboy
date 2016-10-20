@@ -12,11 +12,12 @@ pub struct GBCpu {
     stop_flag: bool, // stop flag used by the stop instruction
 }
 
-enum GBData<'a> {
+enum GBData {
     D16(u16),
     D8(u8),
     ADDRESS(usize),
-    OTHER(&'a str),
+    SP, PC, AF, BC, DE, HL,
+    OTHER(String),
 }
 
 impl GBCpu {
@@ -50,8 +51,23 @@ impl GBCpu {
         self.exec_next_op();
     }
 
-    fn data_p<'a>(&'a mut self, arg: &'a str) -> GBData {
-        GBData::OTHER(arg)
+    fn data_parser(&self, arg: String) -> GBData {
+
+        if arg == "SP" {
+            GBData::SP
+        } else if arg == "PC" {
+            GBData::PC
+        } else if arg == "d8" {
+            let mut byte = self.mem.get(self.pc as usize) as u8;
+            GBData::D8(byte)
+        } else if arg == "d16" {
+            let mut byte = self.mem.get(self.pc as usize) as u16;
+            byte |= (self.mem.get((self.pc+1) as usize) as u16) << 8;
+            GBData::D16(byte)
+        } else {
+            GBData::OTHER(arg)
+        }
+
     }
 
     fn op_adc<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -120,13 +136,29 @@ impl GBCpu {
 
     fn op_ld<'a> (&mut self, args: &'a Vec<&'a str>) {
 
-        println!("ld", );
-
-        for i in args.iter() {
-            println!("arg: {:?}", i);
-        }
-
+        println!("hex: 0x{:04X}, LD {}", self.mem.get(self.pc as usize), args.join(","));
         self.pc += 1;
+
+        // match destination
+        match self.data_parser(args[0].to_string()) {
+            GBData::SP => {
+
+                self.sp = match self.data_parser(args[1].to_string()) {
+                    GBData::D16(v) => {
+                        self.pc += 2;
+                        v
+                    },
+                    GBData::D8(v) => {
+                        self.pc += 1;
+                        v as u16
+                    },
+                    GBData::ADDRESS(v) => self.mem.get(v as usize) as u16,
+                    _ => self.sp,
+                }
+
+            },
+            _ => {},
+        };
 
     }
 
