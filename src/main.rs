@@ -1,3 +1,4 @@
+mod regset;
 mod cpu;
 mod mem;
 
@@ -5,6 +6,7 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::{thread, time};
 
+use regset::GBRegisterSet;
 use cpu::GBCpu;
 use mem::GBMem;
 
@@ -27,12 +29,16 @@ fn main() {
     let timeout = time::Duration::from_millis(16);
 
     // 'main_loop: loop {
-    for _ in 0..2 {
-        cpu.step();
+    for _ in 0..3 {
 
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
+        println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
+
+        cpu.step();
+
         println!("-------------", );
+
 
         thread::sleep(timeout);
 

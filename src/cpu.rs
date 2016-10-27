@@ -1,14 +1,12 @@
 
 use mem::GBMem;
+use regset::GBRegisterSet;
 
 pub struct GBCpu {
     sp  : u16, // stack pointer
     pc  : u16, // program counter
     mem : GBMem, // ram
-    AF: u16, // reg 16bits: A (8bits) and flags (F) b'Zero-N(subtract)-HalfCarry-CarryFlag-0000
-    BC: u16, // reg 16bits
-    DE: u16, // reg 16bits
-    HL: u16, // reg 16bits
+    registers: GBRegisterSet,
     stop_flag: bool, // stop flag used by the stop instruction
 }
 
@@ -16,8 +14,8 @@ enum GBData {
     D16(u16),
     D8(u8),
     ADDRESS(usize),
-    SP, PC, AF, BC, DE, HL,
-    OTHER(String),
+    SP, PC,
+    REG(String),
 }
 
 impl GBCpu {
@@ -27,10 +25,7 @@ impl GBCpu {
             sp: 0x0,
             pc: 0x0,
             mem: mem,
-            AF: 0x0,
-            BC: 0x0,
-            DE: 0x0,
-            HL: 0x0,
+            registers: GBRegisterSet::new(vec!["AF", "BC", "DE", "HL"]),
             stop_flag: false,
         }
     }
@@ -53,19 +48,51 @@ impl GBCpu {
 
     fn data_parser(&self, arg: String) -> GBData {
 
+        let is_address = if arg.contains("(") {
+            arg.replace("(", "").replace(")", "");
+            true
+        } else {
+            false
+        };
+
         if arg == "SP" {
             GBData::SP
         } else if arg == "PC" {
             GBData::PC
         } else if arg == "d8" {
             let mut byte = self.mem.get(self.pc as usize) as u8;
-            GBData::D8(byte)
+            if is_address {
+                byte += 0xFF00;
+                GBData::ADDRESS(byte as usize)
+            } else {
+                GBData::D8(byte)
+            }
         } else if arg == "d16" {
             let mut byte = self.mem.get(self.pc as usize) as u16;
             byte |= (self.mem.get((self.pc+1) as usize) as u16) << 8;
-            GBData::D16(byte)
+            if is_address {
+                byte += 0xFF00;
+                GBData::ADDRESS(byte as usize)
+            } else {
+                GBData::D16(byte)
+            }
+        } else if arg == "a8" {
+            let mut byte = self.mem.get(self.pc as usize) as u16;
+            if is_address {
+                byte += 0xFF00;
+                GBData::ADDRESS(byte as usize)
+            } else {
+                GBData::D8(byte as u8)
+            }
+        } else if arg == "a16" {
+            let mut byte = self.mem.get(self.pc as usize) as u16;
+            byte |= (self.mem.get((self.pc+1) as usize) as u16) << 8;
+            byte += 0xFF00;
+            GBData::ADDRESS(byte as usize)
+
         } else {
-            GBData::OTHER(arg)
+            // Register fallback
+            GBData::REG(arg)
         }
 
     }
@@ -136,7 +163,7 @@ impl GBCpu {
 
     fn op_ld<'a> (&mut self, args: &'a Vec<&'a str>) {
 
-        println!("hex: 0x{:04X}, LD {}", self.mem.get(self.pc as usize), args.join(","));
+        println!("LD {}", args.join(","));
         self.pc += 1;
 
         // match destination
@@ -148,13 +175,15 @@ impl GBCpu {
                         self.pc += 2;
                         v
                     },
-                    GBData::D8(v) => {
-                        self.pc += 1;
-                        v as u16
+                    GBData::REG(reg) => {
+                        // TODO: read reg
+                        5 as u16
                     },
-                    GBData::ADDRESS(v) => self.mem.get(v as usize) as u16,
                     _ => self.sp,
                 }
+
+            },
+            GBData::REG(reg) => {
 
             },
             _ => {},
@@ -231,6 +260,14 @@ impl GBCpu {
     }
 
     fn op_xor<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+        println!("XOR {}", args.join(","));
+        self.pc += 1;
+
+        // match destination
+        match self.data_parser(args[0].to_string()) {
+            _ => {},
+        };
 
     }
 
