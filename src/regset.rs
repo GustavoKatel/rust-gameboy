@@ -39,13 +39,13 @@ impl GBRegisterSet {
         GBRegisterSet{ registers: map }
     }
 
-    pub fn get16(&self, reg: &String) -> u16 {
+    pub fn get(&self, reg: &String) -> u16 {
 
         match self.registers.get(reg) {
             Some(rw) => {
                 match rw {
                     &RegisterWrapper::Pointer{ origin: ref og, position: pos } => {
-                        self.get16(og) >> (8 * pos)
+                        self.get(og) >> (8 * pos)
                     },
                     &RegisterWrapper::Raw(data) => data,
                 }
@@ -58,13 +58,7 @@ impl GBRegisterSet {
 
     }
 
-    pub fn get8(&self, reg: &String) -> u8 {
-
-        self.get16(reg) as u8
-
-    }
-
-    pub fn put8(&mut self, reg: &String, data: u16) {
+    pub fn put(&mut self, reg: &String, data: u16) {
 
         let mut currentReg = reg.clone();
         let mut targetPos = 0 as usize;
@@ -81,13 +75,17 @@ impl GBRegisterSet {
                         },
                         &mut RegisterWrapper::Raw(ref mut reg_data) => {
 
-                            // position(0) => right side
-                            // position(1) => left side
-                            let mut target_mask = (0xFF00 as u16) >> (8 * targetPos);
-                            let mut data_shifted = data << (8 * targetPos);
+                            if reg.len() == 1 {
+                                // position(0) => right side
+                                // position(1) => left side
+                                let mut target_mask = (0xFF00 as u16) >> (8 * targetPos);
+                                let mut data_shifted = data << (8 * targetPos);
 
-                            *reg_data &= target_mask;
-                            *reg_data |= data_shifted;
+                                *reg_data &= target_mask;
+                                *reg_data |= data_shifted;
+                            } else {
+                                *reg_data = data;
+                            }
                             break 'search;
                         },
                     }
@@ -101,34 +99,19 @@ impl GBRegisterSet {
 
     }
 
-    pub fn put16(&mut self, reg: &String, data: u16) {
+    pub fn inc(&mut self, reg: &String) {
 
-        let mut currentReg = reg.clone();
-        let mut targetPos = 0 as usize;
-        'search: loop {
-            let mut res = self.registers.get_mut(&currentReg);
+        let mut value = self.get(reg);
+        value += 0x1;
+        self.put(reg, value);
 
-            match res {
-                Some(rw) => {
-                    match rw {
-                        &mut RegisterWrapper::Pointer{ origin: ref orig, position: pos } => {
-                            currentReg = orig.clone();
-                            targetPos = pos;
-                            continue 'search;
-                        },
-                        &mut RegisterWrapper::Raw(ref mut reg_data) => {
+    }
 
-                            *reg_data = data;
-                            break 'search;
-                        },
-                    }
-                },
-                None => {
-                    println!("Register not found: {}", reg);
-                },
-            };
+    pub fn dec(&mut self, reg: &String) {
 
-        };
+        let mut value = self.get(reg);
+        value -= 0x1;
+        self.put(reg, value);
 
     }
 

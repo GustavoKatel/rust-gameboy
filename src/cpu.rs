@@ -15,7 +15,7 @@ enum GBData {
     D8(u8),
     ADDRESS(usize),
     SP, PC,
-    REG(String),
+    REG{name: String, inc: bool, dec: bool, addr: bool},
 }
 
 impl GBCpu {
@@ -42,14 +42,34 @@ impl GBCpu {
         &self.mem
     }
 
+    pub fn get_regset_ref<'a> (&'a self) -> &'a GBRegisterSet {
+        &self.registers
+    }
+
     pub fn step(&mut self) {
         self.exec_next_op();
     }
 
-    fn data_parser(&self, arg: String) -> GBData {
+    fn arg_parse(&self, arg_in: String) -> GBData {
+
+        let mut arg = arg_in;
 
         let is_address = if arg.contains("(") {
-            arg.replace("(", "").replace(")", "");
+            arg = arg.replace("(", "").replace(")", "");
+            true
+        } else {
+            false
+        };
+
+        let has_inc = if arg.contains("+") {
+            arg = arg.replace("+", "");
+            true
+        } else {
+            false
+        };
+
+        let has_dec = if arg.contains("-") {
+            arg = arg.replace("-", "");
             true
         } else {
             false
@@ -92,7 +112,46 @@ impl GBCpu {
 
         } else {
             // Register fallback
-            GBData::REG(arg)
+            GBData::REG{name: arg, inc: has_inc, dec: has_dec, addr: is_address}
+        }
+
+    }
+
+    fn data_parse(&mut self, arg: &GBData) -> u16 {
+
+        match arg {
+            &GBData::D8(v) => {
+                self.pc += 1;
+                v as u16
+            },
+            &GBData::D16(v) => {
+                self.pc += 2;
+                v
+            },
+            &GBData::REG{ref name, inc, dec, addr} => {
+                let mut value = self.registers.get(&name);
+
+                if addr {
+                    value = self.mem.get(value as usize) as u16;
+                }
+                if inc {
+                    self.registers.inc(&name);
+                }
+                if dec {
+                    self.registers.dec(&name);
+                }
+
+                value
+            },
+            &GBData::ADDRESS(addr) => {
+                addr as u16
+            },
+            &GBData::SP => {
+                self.sp
+            },
+            &GBData::PC => {
+                self.pc
+            },
         }
 
     }
@@ -163,28 +222,43 @@ impl GBCpu {
 
     fn op_ld<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        // TODO: check affected flags when op (0xF8) LD HL,SP+r8
+
         println!("LD {}", args.join(","));
         self.pc += 1;
 
         // match destination
-        match self.data_parser(args[0].to_string()) {
+        match self.arg_parse(args[0].to_string()) {
             GBData::SP => {
 
-                self.sp = match self.data_parser(args[1].to_string()) {
-                    GBData::D16(v) => {
-                        self.pc += 2;
-                        v
-                    },
-                    GBData::REG(reg) => {
-                        // TODO: read reg
-                        5 as u16
-                    },
-                    _ => self.sp,
+                let argp = self.arg_parse(args[1].to_string());
+                self.sp = self.data_parse(&argp);
+
+            },
+            GBData::REG{name, inc, dec, addr} => {
+                let argp = self.arg_parse(args[1].to_string());
+                let mut data = self.data_parse(&argp);
+
+                // copy to an address?
+                if addr {
+                    self.mem.put(self.registers.get(&name) as usize, data as u8);
+                } else {
+                    self.registers.put(&name, data);
+                }
+
+                if inc {
+                    self.registers.inc(&name);
+                }
+                if dec {
+                    self.registers.dec(&name);
                 }
 
             },
-            GBData::REG(reg) => {
+            GBData::ADDRESS(addr) => {
+                let argp = self.arg_parse(args[1].to_string());
+                let mut data = self.data_parse(&argp);
 
+                self.mem.put(addr, data as u8);
             },
             _ => {},
         };
@@ -265,7 +339,7 @@ impl GBCpu {
         self.pc += 1;
 
         // match destination
-        match self.data_parser(args[0].to_string()) {
+        match self.arg_parse(args[0].to_string()) {
             _ => {},
         };
 

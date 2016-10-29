@@ -6,7 +6,6 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::{thread, time};
 
-use regset::GBRegisterSet;
 use cpu::GBCpu;
 use mem::GBMem;
 
@@ -34,8 +33,10 @@ fn main() {
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
         println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
+        println!("{:?}", cpu.get_regset_ref());
 
         cpu.step();
+
 
         println!("-------------", );
 
@@ -43,5 +44,10 @@ fn main() {
         thread::sleep(timeout);
 
     }
+
+    println!("SP: 0x{:04X}", cpu.get_sp());
+    println!("PC: 0x{:04X}", cpu.get_pc());
+    println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
+    println!("{:?}", cpu.get_regset_ref());
 
 }
