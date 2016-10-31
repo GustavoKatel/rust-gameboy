@@ -237,7 +237,7 @@ impl GBCpu {
             },
             GBData::REG{name, inc, dec, addr} => {
                 let argp = self.arg_parse(args[1].to_string());
-                let mut data = self.data_parse(&argp);
+                let data = self.data_parse(&argp);
 
                 // copy to an address?
                 if addr {
@@ -282,6 +282,9 @@ impl GBCpu {
     }
 
     fn op_prefix<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+        println!("CB {}", args.join(","));
+        self.pc += 1;
 
     }
 
@@ -335,13 +338,41 @@ impl GBCpu {
 
     fn op_xor<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        // Flags affected:
+        // Z - Set if result is zero.
+        // N - Reset.
+        // H - Reset.
+        // C - Reset.
         println!("XOR {}", args.join(","));
         self.pc += 1;
 
+        let mut reg_a = self.registers.get(&"A".to_string());
         // match destination
-        match self.arg_parse(args[0].to_string()) {
-            _ => {},
+        let data = match self.arg_parse(args[0].to_string()) {
+            GBData::REG{name, addr, ..} => {
+                let value = self.registers.get(&name);
+                if addr {
+                    self.mem.get(value as usize) as u16
+                } else {
+                    value
+                }
+            },
+            GBData::D8(v) => {
+                self.pc += 1;
+                v as u16
+            },
+            _ => 0x0,
         };
+
+        reg_a ^= data;
+
+        let mut flags = 0b10000000; // result = 0
+        if (reg_a & 0x00FF) > 0 {
+            flags = 0b00000000;
+        }
+
+        self.registers.put(&"A".to_string(), reg_a);
+        self.registers.put(&"F".to_string(), flags);
 
     }
 
