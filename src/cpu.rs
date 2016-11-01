@@ -1,3 +1,4 @@
+#[macro_use] use log;
 use bit_vec::BitVec;
 
 use mem::GBMem;
@@ -14,6 +15,7 @@ pub struct GBCpu {
 enum GBData {
     D16(u16),
     D8(u8),
+    R8(i8),
     ADDRESS(usize),
     SP, PC,
     REG{name: String, inc: bool, dec: bool, addr: bool},
@@ -80,6 +82,9 @@ impl GBCpu {
             GBData::SP
         } else if arg == "PC" {
             GBData::PC
+        } else if arg == "r8" {
+            let mut byte = self.mem.get(self.pc as usize) as i8;
+            GBData::R8(byte)
         } else if arg == "d8" {
             let mut byte = self.mem.get(self.pc as usize) as u8;
             if is_address {
@@ -121,6 +126,10 @@ impl GBCpu {
     fn data_parse(&mut self, arg: &GBData) -> u16 {
 
         match arg {
+            &GBData::R8(v) => {
+                self.pc += 1;
+                v as u16
+            },
             &GBData::D8(v) => {
                 self.pc += 1;
                 v as u16
@@ -207,6 +216,28 @@ impl GBCpu {
 
     fn op_inc<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        println!("INC {}", args.join(","));
+        self.pc += 1;
+
+        match self.arg_parse(args[0].to_string()) {
+            GBData::REG{name, inc, dec, addr} => {
+
+                if addr {
+
+                    let reg_value = self.registers.get(&name);
+                    let mut mem_value = self.mem.get(reg_value as usize);
+                    mem_value += 0x1;
+                    self.mem.put(reg_value as usize, mem_value as u8);
+
+                } else {
+                    self.registers.inc(&name);
+                }
+
+            },
+            GBData::SP => self.sp += 0x1,
+            _ => {},
+        }
+
     }
 
     fn op_jp<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -215,6 +246,38 @@ impl GBCpu {
 
     fn op_jr<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        println!("JR {}", args.join(","));
+        self.pc += 1;
+
+        // 0	1	2	3
+        // Z	N	H	C
+        let flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
+
+        let condition = match args[0] {
+            "NZ" => { // Z = 0
+                !flags.get(0).unwrap()
+            },
+            "Z" => { // Z != 0
+                flags.get(0).unwrap()
+            },
+            "NC" => { // C = 0
+                !flags.get(3).unwrap()
+            },
+            "C" => { // C != 0
+                flags.get(3).unwrap()
+            },
+            _ => true,
+        };
+
+        let destination = {
+            let argp = self.arg_parse(args.last().unwrap().to_string());
+            let data = self.data_parse(&argp) as i16; // r8
+            ((self.pc as i16) + data) as u16
+        };
+
+        if condition {
+            self.pc = destination;
+        }
     }
 
     fn op_ldh<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -404,7 +467,7 @@ impl GBCpu {
         flags_bits.set(1, false);
 
         // set Z if bit b is 0
-        flags_bits.set(0, !bits.get(bit).unwrap() );
+        flags_bits.set(0, !bits.get(7-bit).unwrap() );
 
         flags = flags_bits.to_bytes()[0];
 

@@ -1,3 +1,4 @@
+#[macro_use] extern crate log;
 extern crate  bit_vec;
 
 mod regset;
@@ -7,6 +8,7 @@ mod mem;
 use std::io::prelude::*;
 use std::fs::File;
 use std::{thread, time};
+use std::io;
 
 use cpu::GBCpu;
 use mem::GBMem;
@@ -30,7 +32,7 @@ fn main() {
     let timeout = time::Duration::from_millis(16);
 
     // 'main_loop: loop {
-    for _ in 0..6 {
+    for _ in 0..24577+5 {
 
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
@@ -43,7 +45,28 @@ fn main() {
         println!("-------------", );
 
 
-        thread::sleep(timeout);
+        // thread::sleep(timeout);
+
+    }
+
+    'read_loop: loop {
+
+        println!("SP: 0x{:04X}", cpu.get_sp());
+        println!("PC: 0x{:04X}", cpu.get_pc());
+        println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
+        println!("{:?}", cpu.get_regset_ref());
+
+        cpu.step();
+
+
+        println!("-------------", );
+
+        let stdin = io::stdin();
+        let line = stdin.lock().lines().next().unwrap().unwrap();
+
+        if line == "q" {
+            break 'read_loop;
+        }
 
     }
 
