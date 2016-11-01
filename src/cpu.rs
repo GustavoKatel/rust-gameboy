@@ -1,3 +1,4 @@
+use bit_vec::BitVec;
 
 use mem::GBMem;
 use regset::GBRegisterSet;
@@ -222,7 +223,7 @@ impl GBCpu {
 
     fn op_ld<'a> (&mut self, args: &'a Vec<&'a str>) {
 
-        // TODO: check affected flags when op (0xF8) LD HL,SP+r8
+        // TODO:0 check affected flags when op (0xF8) LD HL,SP+r8 id:0
 
         println!("LD {}", args.join(","));
         self.pc += 1;
@@ -285,6 +286,8 @@ impl GBCpu {
 
         println!("CB {}", args.join(","));
         self.pc += 1;
+
+        self.exec_next_op_cb();
 
     }
 
@@ -366,13 +369,86 @@ impl GBCpu {
 
         reg_a ^= data;
 
-        let mut flags = 0b10000000; // result = 0
-        if (reg_a & 0x00FF) > 0 {
-            flags = 0b00000000;
+        let mut flags = BitVec::from_elem(8, false);
+        if (reg_a & 0x00FF) == 0 {
+            flags.set(0, true); // set Z flag
         }
 
         self.registers.put(&"A".to_string(), reg_a);
-        self.registers.put(&"F".to_string(), flags);
+        self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
+
+    }
+
+    fn op_bit<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+        // Flags affected:
+        // Z - Set if bit b of register r is 0. (0)
+        // N - Reset. (1)
+        // H - Set. (2)
+        // C - Not affected.(3)
+        println!("BIT {}", args.join(","));
+        self.pc += 1;
+
+        // first arg is an integer
+        let bit = args[0].parse::<usize>().unwrap();
+        let argp = self.arg_parse(args[1].to_string());
+        let data = self.data_parse(&argp) as u8;
+        let mut flags = self.registers.get(&"F".to_string()) as u8;
+
+        let mut bits = BitVec::from_bytes(&[data]);
+
+        let mut flags_bits = BitVec::from_bytes(&[flags]);
+        // set H
+        flags_bits.set(2, true);
+        // reset N
+        flags_bits.set(1, false);
+
+        // set Z if bit b is 0
+        flags_bits.set(0, !bits.get(bit).unwrap() );
+
+        flags = flags_bits.to_bytes()[0];
+
+        self.registers.put(&"F".to_string(), flags as u16);
+
+    }
+
+    fn op_res<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_rlc<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_rl<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_rrc<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_rr<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_set<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_sla<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_sra<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_srl<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+    }
+
+    fn op_swap<'a> (&mut self, args: &'a Vec<&'a str>) {
 
     }
 
@@ -642,6 +718,271 @@ impl GBCpu {
 
         }
 
+    }
+
+    fn exec_next_op_cb(&mut self) {
+
+        let byte = self.mem.get(self.pc as usize);
+
+        match byte & 0xFF {
+            0x0 => self.op_rlc(&vec!("B")),
+            0x1 => self.op_rlc(&vec!("C")),
+            0x2 => self.op_rlc(&vec!("D")),
+            0x3 => self.op_rlc(&vec!("E")),
+            0x4 => self.op_rlc(&vec!("H")),
+            0x5 => self.op_rlc(&vec!("L")),
+            0x6 => self.op_rlc(&vec!("(HL)")),
+            0x7 => self.op_rlc(&vec!("A")),
+            0x8 => self.op_rrc(&vec!("B")),
+            0x9 => self.op_rrc(&vec!("C")),
+            0xa => self.op_rrc(&vec!("D")),
+            0xb => self.op_rrc(&vec!("E")),
+            0xc => self.op_rrc(&vec!("H")),
+            0xd => self.op_rrc(&vec!("L")),
+            0xe => self.op_rrc(&vec!("(HL)")),
+            0xf => self.op_rrc(&vec!("A")),
+            0x10 => self.op_rl(&vec!("B")),
+            0x11 => self.op_rl(&vec!("C")),
+            0x12 => self.op_rl(&vec!("D")),
+            0x13 => self.op_rl(&vec!("E")),
+            0x14 => self.op_rl(&vec!("H")),
+            0x15 => self.op_rl(&vec!("L")),
+            0x16 => self.op_rl(&vec!("(HL)")),
+            0x17 => self.op_rl(&vec!("A")),
+            0x18 => self.op_rr(&vec!("B")),
+            0x19 => self.op_rr(&vec!("C")),
+            0x1a => self.op_rr(&vec!("D")),
+            0x1b => self.op_rr(&vec!("E")),
+            0x1c => self.op_rr(&vec!("H")),
+            0x1d => self.op_rr(&vec!("L")),
+            0x1e => self.op_rr(&vec!("(HL)")),
+            0x1f => self.op_rr(&vec!("A")),
+            0x20 => self.op_sla(&vec!("B")),
+            0x21 => self.op_sla(&vec!("C")),
+            0x22 => self.op_sla(&vec!("D")),
+            0x23 => self.op_sla(&vec!("E")),
+            0x24 => self.op_sla(&vec!("H")),
+            0x25 => self.op_sla(&vec!("L")),
+            0x26 => self.op_sla(&vec!("(HL)")),
+            0x27 => self.op_sla(&vec!("A")),
+            0x28 => self.op_sra(&vec!("B")),
+            0x29 => self.op_sra(&vec!("C")),
+            0x2a => self.op_sra(&vec!("D")),
+            0x2b => self.op_sra(&vec!("E")),
+            0x2c => self.op_sra(&vec!("H")),
+            0x2d => self.op_sra(&vec!("L")),
+            0x2e => self.op_sra(&vec!("(HL)")),
+            0x2f => self.op_sra(&vec!("A")),
+            0x30 => self.op_swap(&vec!("B")),
+            0x31 => self.op_swap(&vec!("C")),
+            0x32 => self.op_swap(&vec!("D")),
+            0x33 => self.op_swap(&vec!("E")),
+            0x34 => self.op_swap(&vec!("H")),
+            0x35 => self.op_swap(&vec!("L")),
+            0x36 => self.op_swap(&vec!("(HL)")),
+            0x37 => self.op_swap(&vec!("A")),
+            0x38 => self.op_srl(&vec!("B")),
+            0x39 => self.op_srl(&vec!("C")),
+            0x3a => self.op_srl(&vec!("D")),
+            0x3b => self.op_srl(&vec!("E")),
+            0x3c => self.op_srl(&vec!("H")),
+            0x3d => self.op_srl(&vec!("L")),
+            0x3e => self.op_srl(&vec!("(HL)")),
+            0x3f => self.op_srl(&vec!("A")),
+            0x40 => self.op_bit(&vec!("0","B")),
+            0x41 => self.op_bit(&vec!("0","C")),
+            0x42 => self.op_bit(&vec!("0","D")),
+            0x43 => self.op_bit(&vec!("0","E")),
+            0x44 => self.op_bit(&vec!("0","H")),
+            0x45 => self.op_bit(&vec!("0","L")),
+            0x46 => self.op_bit(&vec!("0","(HL)")),
+            0x47 => self.op_bit(&vec!("0","A")),
+            0x48 => self.op_bit(&vec!("1","B")),
+            0x49 => self.op_bit(&vec!("1","C")),
+            0x4a => self.op_bit(&vec!("1","D")),
+            0x4b => self.op_bit(&vec!("1","E")),
+            0x4c => self.op_bit(&vec!("1","H")),
+            0x4d => self.op_bit(&vec!("1","L")),
+            0x4e => self.op_bit(&vec!("1","(HL)")),
+            0x4f => self.op_bit(&vec!("1","A")),
+            0x50 => self.op_bit(&vec!("2","B")),
+            0x51 => self.op_bit(&vec!("2","C")),
+            0x52 => self.op_bit(&vec!("2","D")),
+            0x53 => self.op_bit(&vec!("2","E")),
+            0x54 => self.op_bit(&vec!("2","H")),
+            0x55 => self.op_bit(&vec!("2","L")),
+            0x56 => self.op_bit(&vec!("2","(HL)")),
+            0x57 => self.op_bit(&vec!("2","A")),
+            0x58 => self.op_bit(&vec!("3","B")),
+            0x59 => self.op_bit(&vec!("3","C")),
+            0x5a => self.op_bit(&vec!("3","D")),
+            0x5b => self.op_bit(&vec!("3","E")),
+            0x5c => self.op_bit(&vec!("3","H")),
+            0x5d => self.op_bit(&vec!("3","L")),
+            0x5e => self.op_bit(&vec!("3","(HL)")),
+            0x5f => self.op_bit(&vec!("3","A")),
+            0x60 => self.op_bit(&vec!("4","B")),
+            0x61 => self.op_bit(&vec!("4","C")),
+            0x62 => self.op_bit(&vec!("4","D")),
+            0x63 => self.op_bit(&vec!("4","E")),
+            0x64 => self.op_bit(&vec!("4","H")),
+            0x65 => self.op_bit(&vec!("4","L")),
+            0x66 => self.op_bit(&vec!("4","(HL)")),
+            0x67 => self.op_bit(&vec!("4","A")),
+            0x68 => self.op_bit(&vec!("5","B")),
+            0x69 => self.op_bit(&vec!("5","C")),
+            0x6a => self.op_bit(&vec!("5","D")),
+            0x6b => self.op_bit(&vec!("5","E")),
+            0x6c => self.op_bit(&vec!("5","H")),
+            0x6d => self.op_bit(&vec!("5","L")),
+            0x6e => self.op_bit(&vec!("5","(HL)")),
+            0x6f => self.op_bit(&vec!("5","A")),
+            0x70 => self.op_bit(&vec!("6","B")),
+            0x71 => self.op_bit(&vec!("6","C")),
+            0x72 => self.op_bit(&vec!("6","D")),
+            0x73 => self.op_bit(&vec!("6","E")),
+            0x74 => self.op_bit(&vec!("6","H")),
+            0x75 => self.op_bit(&vec!("6","L")),
+            0x76 => self.op_bit(&vec!("6","(HL)")),
+            0x77 => self.op_bit(&vec!("6","A")),
+            0x78 => self.op_bit(&vec!("7","B")),
+            0x79 => self.op_bit(&vec!("7","C")),
+            0x7a => self.op_bit(&vec!("7","D")),
+            0x7b => self.op_bit(&vec!("7","E")),
+            0x7c => self.op_bit(&vec!("7","H")),
+            0x7d => self.op_bit(&vec!("7","L")),
+            0x7e => self.op_bit(&vec!("7","(HL)")),
+            0x7f => self.op_bit(&vec!("7","A")),
+            0x80 => self.op_res(&vec!("0","B")),
+            0x81 => self.op_res(&vec!("0","C")),
+            0x82 => self.op_res(&vec!("0","D")),
+            0x83 => self.op_res(&vec!("0","E")),
+            0x84 => self.op_res(&vec!("0","H")),
+            0x85 => self.op_res(&vec!("0","L")),
+            0x86 => self.op_res(&vec!("0","(HL)")),
+            0x87 => self.op_res(&vec!("0","A")),
+            0x88 => self.op_res(&vec!("1","B")),
+            0x89 => self.op_res(&vec!("1","C")),
+            0x8a => self.op_res(&vec!("1","D")),
+            0x8b => self.op_res(&vec!("1","E")),
+            0x8c => self.op_res(&vec!("1","H")),
+            0x8d => self.op_res(&vec!("1","L")),
+            0x8e => self.op_res(&vec!("1","(HL)")),
+            0x8f => self.op_res(&vec!("1","A")),
+            0x90 => self.op_res(&vec!("2","B")),
+            0x91 => self.op_res(&vec!("2","C")),
+            0x92 => self.op_res(&vec!("2","D")),
+            0x93 => self.op_res(&vec!("2","E")),
+            0x94 => self.op_res(&vec!("2","H")),
+            0x95 => self.op_res(&vec!("2","L")),
+            0x96 => self.op_res(&vec!("2","(HL)")),
+            0x97 => self.op_res(&vec!("2","A")),
+            0x98 => self.op_res(&vec!("3","B")),
+            0x99 => self.op_res(&vec!("3","C")),
+            0x9a => self.op_res(&vec!("3","D")),
+            0x9b => self.op_res(&vec!("3","E")),
+            0x9c => self.op_res(&vec!("3","H")),
+            0x9d => self.op_res(&vec!("3","L")),
+            0x9e => self.op_res(&vec!("3","(HL)")),
+            0x9f => self.op_res(&vec!("3","A")),
+            0xa0 => self.op_res(&vec!("4","B")),
+            0xa1 => self.op_res(&vec!("4","C")),
+            0xa2 => self.op_res(&vec!("4","D")),
+            0xa3 => self.op_res(&vec!("4","E")),
+            0xa4 => self.op_res(&vec!("4","H")),
+            0xa5 => self.op_res(&vec!("4","L")),
+            0xa6 => self.op_res(&vec!("4","(HL)")),
+            0xa7 => self.op_res(&vec!("4","A")),
+            0xa8 => self.op_res(&vec!("5","B")),
+            0xa9 => self.op_res(&vec!("5","C")),
+            0xaa => self.op_res(&vec!("5","D")),
+            0xab => self.op_res(&vec!("5","E")),
+            0xac => self.op_res(&vec!("5","H")),
+            0xad => self.op_res(&vec!("5","L")),
+            0xae => self.op_res(&vec!("5","(HL)")),
+            0xaf => self.op_res(&vec!("5","A")),
+            0xb0 => self.op_res(&vec!("6","B")),
+            0xb1 => self.op_res(&vec!("6","C")),
+            0xb2 => self.op_res(&vec!("6","D")),
+            0xb3 => self.op_res(&vec!("6","E")),
+            0xb4 => self.op_res(&vec!("6","H")),
+            0xb5 => self.op_res(&vec!("6","L")),
+            0xb6 => self.op_res(&vec!("6","(HL)")),
+            0xb7 => self.op_res(&vec!("6","A")),
+            0xb8 => self.op_res(&vec!("7","B")),
+            0xb9 => self.op_res(&vec!("7","C")),
+            0xba => self.op_res(&vec!("7","D")),
+            0xbb => self.op_res(&vec!("7","E")),
+            0xbc => self.op_res(&vec!("7","H")),
+            0xbd => self.op_res(&vec!("7","L")),
+            0xbe => self.op_res(&vec!("7","(HL)")),
+            0xbf => self.op_res(&vec!("7","A")),
+            0xc0 => self.op_set(&vec!("0","B")),
+            0xc1 => self.op_set(&vec!("0","C")),
+            0xc2 => self.op_set(&vec!("0","D")),
+            0xc3 => self.op_set(&vec!("0","E")),
+            0xc4 => self.op_set(&vec!("0","H")),
+            0xc5 => self.op_set(&vec!("0","L")),
+            0xc6 => self.op_set(&vec!("0","(HL)")),
+            0xc7 => self.op_set(&vec!("0","A")),
+            0xc8 => self.op_set(&vec!("1","B")),
+            0xc9 => self.op_set(&vec!("1","C")),
+            0xca => self.op_set(&vec!("1","D")),
+            0xcb => self.op_set(&vec!("1","E")),
+            0xcc => self.op_set(&vec!("1","H")),
+            0xcd => self.op_set(&vec!("1","L")),
+            0xce => self.op_set(&vec!("1","(HL)")),
+            0xcf => self.op_set(&vec!("1","A")),
+            0xd0 => self.op_set(&vec!("2","B")),
+            0xd1 => self.op_set(&vec!("2","C")),
+            0xd2 => self.op_set(&vec!("2","D")),
+            0xd3 => self.op_set(&vec!("2","E")),
+            0xd4 => self.op_set(&vec!("2","H")),
+            0xd5 => self.op_set(&vec!("2","L")),
+            0xd6 => self.op_set(&vec!("2","(HL)")),
+            0xd7 => self.op_set(&vec!("2","A")),
+            0xd8 => self.op_set(&vec!("3","B")),
+            0xd9 => self.op_set(&vec!("3","C")),
+            0xda => self.op_set(&vec!("3","D")),
+            0xdb => self.op_set(&vec!("3","E")),
+            0xdc => self.op_set(&vec!("3","H")),
+            0xdd => self.op_set(&vec!("3","L")),
+            0xde => self.op_set(&vec!("3","(HL)")),
+            0xdf => self.op_set(&vec!("3","A")),
+            0xe0 => self.op_set(&vec!("4","B")),
+            0xe1 => self.op_set(&vec!("4","C")),
+            0xe2 => self.op_set(&vec!("4","D")),
+            0xe3 => self.op_set(&vec!("4","E")),
+            0xe4 => self.op_set(&vec!("4","H")),
+            0xe5 => self.op_set(&vec!("4","L")),
+            0xe6 => self.op_set(&vec!("4","(HL)")),
+            0xe7 => self.op_set(&vec!("4","A")),
+            0xe8 => self.op_set(&vec!("5","B")),
+            0xe9 => self.op_set(&vec!("5","C")),
+            0xea => self.op_set(&vec!("5","D")),
+            0xeb => self.op_set(&vec!("5","E")),
+            0xec => self.op_set(&vec!("5","H")),
+            0xed => self.op_set(&vec!("5","L")),
+            0xee => self.op_set(&vec!("5","(HL)")),
+            0xef => self.op_set(&vec!("5","A")),
+            0xf0 => self.op_set(&vec!("6","B")),
+            0xf1 => self.op_set(&vec!("6","C")),
+            0xf2 => self.op_set(&vec!("6","D")),
+            0xf3 => self.op_set(&vec!("6","E")),
+            0xf4 => self.op_set(&vec!("6","H")),
+            0xf5 => self.op_set(&vec!("6","L")),
+            0xf6 => self.op_set(&vec!("6","(HL)")),
+            0xf7 => self.op_set(&vec!("6","A")),
+            0xf8 => self.op_set(&vec!("7","B")),
+            0xf9 => self.op_set(&vec!("7","C")),
+            0xfa => self.op_set(&vec!("7","D")),
+            0xfb => self.op_set(&vec!("7","E")),
+            0xfc => self.op_set(&vec!("7","H")),
+            0xfd => self.op_set(&vec!("7","L")),
+            0xfe => self.op_set(&vec!("7","(HL)")),
+            0xff => self.op_set(&vec!("7","A")),
+            _ => panic!("Unknown OP"),
+        }
     }
 
 }

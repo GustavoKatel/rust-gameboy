@@ -1,3 +1,5 @@
+extern crate  bit_vec;
+
 mod regset;
 mod cpu;
 mod mem;
@@ -28,7 +30,7 @@ fn main() {
     let timeout = time::Duration::from_millis(16);
 
     // 'main_loop: loop {
-    for _ in 0..5 {
+    for _ in 0..6 {
 
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
