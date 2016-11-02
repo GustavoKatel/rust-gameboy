@@ -263,6 +263,66 @@ impl GBCpu {
 
     fn op_dec<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        // Flags affected:
+        // Z - Set if reselt is zero. (0)
+        // N - Set. (1)
+        // H - Set if no borrow from bit 4. (2)
+        // C - Not affected. (3)
+        println!("DEC {}", args.join(","));
+        self.pc += 1;
+
+        let mut flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
+        let change_flags = args[0].len() == 1;
+
+        // reset N
+        if change_flags {
+            flags.set(1, true);
+        }
+
+        match self.arg_parse(args[0].to_string()) {
+            GBData::REG{name, inc, dec, addr} => {
+
+                if addr {
+
+                    let reg_value = self.registers.get(&name);
+                    let mut mem_value = self.mem.get(reg_value as usize) as u16;
+
+                    let half_carry = ( (mem_value & 0x1F) - 0x01 ) & 0xF0 != 0x00; // no borrow
+
+                    mem_value -= 0x1;
+
+                    if change_flags {
+                        // Zero flag
+                        flags.set(0, mem_value == 0x0);
+                        // half carry
+                        flags.set(2, half_carry);
+                        self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
+                    }
+
+                    self.mem.put(reg_value as usize, mem_value as u8);
+
+                } else {
+                    let mut reg_value = self.registers.get(&name);
+                    let half_carry = ( (reg_value & 0x1F) - 0x01 ) & 0xF0 != 0x00; // no borrow
+
+                    reg_value -= 0x1;
+
+                    self.registers.put(&name, reg_value);
+
+                    if change_flags {
+                        // Zero flag
+                        flags.set(0, reg_value == 0x0);
+                        // half carry
+                        flags.set(2, half_carry);
+                        self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
+                    }
+                }
+
+            },
+            GBData::SP => self.sp -= 0x1,
+            _ => {},
+        }
+
     }
 
     fn op_di(&mut self) {
@@ -279,9 +339,21 @@ impl GBCpu {
 
     fn op_inc<'a> (&mut self, args: &'a Vec<&'a str>) {
 
-        // TODO: see affected flags id:5
+        // Flags affected:
+        // Z - Set if result is zero. (0)
+        // N - Reset. (1)
+        // H - Set if carry from bit 3. (2)
+        // C - Not affected. (3)
         println!("INC {}", args.join(","));
         self.pc += 1;
+
+        let mut flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
+        let change_flags = args[0].len() == 1;
+
+        // reset N
+        if change_flags {
+            flags.set(1, false);
+        }
 
         match self.arg_parse(args[0].to_string()) {
             GBData::REG{name, inc, dec, addr} => {
@@ -289,12 +361,37 @@ impl GBCpu {
                 if addr {
 
                     let reg_value = self.registers.get(&name);
-                    let mut mem_value = self.mem.get(reg_value as usize);
+                    let mut mem_value = self.mem.get(reg_value as usize) as u16;
+
+                    let half_carry = ( (mem_value & 0x0F) + 0x01 ) & 0x10 == 0x10;
+
                     mem_value += 0x1;
+
+                    if change_flags {
+                        // Zero flag
+                        flags.set(0, mem_value == 0x0);
+                        // half carry
+                        flags.set(2, half_carry);
+                        self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
+                    }
+
                     self.mem.put(reg_value as usize, mem_value as u8);
 
                 } else {
-                    self.registers.inc(&name);
+                    let mut reg_value = self.registers.get(&name);
+                    let half_carry = ( (reg_value & 0x0F) + 0x01 ) & 0x10 == 0x10;
+
+                    reg_value += 0x1;
+
+                    self.registers.put(&name, reg_value);
+
+                    if change_flags {
+                        // Zero flag
+                        flags.set(0, reg_value == 0x0);
+                        // half carry
+                        flags.set(2, half_carry);
+                        self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
+                    }
                 }
 
             },
