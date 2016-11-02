@@ -255,6 +255,36 @@ impl GBCpu {
 
     fn op_cp<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        // Flags affected:
+        // Z - Set if result is zero. (Set if A = n.) (0)
+        // N - Set. (1)
+        // H - Set if no borrow from bit 4. (2)
+        // C - Set for no borrow. (Set if A < n.) (3)
+        println!("CP {}", args.join(","));
+        self.pc += 1;
+
+        let mut reg_a = self.registers.get(&"A".to_string());
+
+        let argp = self.arg_parse(args[0].to_string());
+        let data = self.data_parse(&argp);
+
+        let mut flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
+
+        // set N
+        flags.set(1, true);
+
+        // Zero flag
+        flags.set(0, reg_a == data);
+
+        let half_carry = ( reg_a - (data & 0x0F) ) & 0xF0 != 0x00; // no borrow
+        // Half carry flag
+        flags.set(2, half_carry);
+
+        // Half carry flag
+        flags.set(3, reg_a > data);
+
+        self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
+
     }
 
     fn op_daa(&mut self) {
@@ -287,7 +317,7 @@ impl GBCpu {
                     let reg_value = self.registers.get(&name);
                     let mut mem_value = self.mem.get(reg_value as usize) as u16;
 
-                    let half_carry = ( (mem_value & 0x1F) - 0x01 ) & 0xF0 != 0x00; // no borrow
+                    let half_carry = ( mem_value - 0x01 ) & 0xF0 != 0x00; // no borrow
 
                     mem_value -= 0x1;
 
@@ -303,7 +333,7 @@ impl GBCpu {
 
                 } else {
                     let mut reg_value = self.registers.get(&name);
-                    let half_carry = ( (reg_value & 0x1F) - 0x01 ) & 0xF0 != 0x00; // no borrow
+                    let half_carry = ( reg_value - 0x01 ) & 0xF0 != 0x00; // no borrow
 
                     reg_value -= 0x1;
 
@@ -485,7 +515,7 @@ impl GBCpu {
                 let argp = self.arg_parse(args[1].to_string());
                 let data = self.data_parse(&argp);
 
-                // copy to an address?
+                // NOTE: copy to an address? id:6
                 if addr {
                     self.mem.put(self.registers.get(&name) as usize, data as u8);
                 } else {

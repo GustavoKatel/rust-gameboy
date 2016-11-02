@@ -31,8 +31,11 @@ fn main() {
 
     let timeout = time::Duration::from_millis(16);
 
+    // let mut count = 0;
+
     // 'main_loop: loop {
-    for _ in 0..24577+5+12+39 {
+    // for _ in 0..24577+5+12+39+39 {
+    for _ in 0..28626 {
 
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
@@ -47,7 +50,14 @@ fn main() {
 
         // thread::sleep(timeout);
 
+        // count += 1;
+        // if cpu.get_pc() == 0x34 {
+        //     break 'main_loop;
+        // }
+
     }
+
+    // println!("count: {:?}", count);
 
     'read_loop: loop {
 
