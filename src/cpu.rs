@@ -574,6 +574,43 @@ impl GBCpu {
 
     fn op_ret<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        println!("RET {}", args.join(","));
+        self.pc += 1;
+
+        // 0	1	2	3
+        // Z	N	H	C
+        let flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
+
+        let condition = {
+
+            if args.len() == 0 {
+                true
+            } else {
+                match args[0] {
+                    "NZ" => { // Z = 0
+                        !flags.get(0).unwrap()
+                    },
+                    "Z" => { // Z != 0
+                        flags.get(0).unwrap()
+                    },
+                    "NC" => { // C = 0
+                        !flags.get(3).unwrap()
+                    },
+                    "C" => { // C != 0
+                        flags.get(3).unwrap()
+                    },
+                    _ => true,
+                }
+            }
+
+        };
+
+        let destination = self.stack_pop();
+
+        if condition {
+            self.pc = destination;
+        }
+
     }
 
     fn op_rla(&mut self) {
