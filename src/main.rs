@@ -31,11 +31,11 @@ fn main() {
 
     let timeout = time::Duration::from_millis(16);
 
-    // let mut count = 0;
+    let mut count = 0;
 
-    // 'main_loop: loop {
+    'main_loop: loop {
     // for _ in 0..24577+5+12+39+39 {
-    for _ in 0..28626 {
+    // for _ in 0..28817 {
 
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
@@ -50,21 +50,22 @@ fn main() {
 
         // thread::sleep(timeout);
 
-        // count += 1;
-        // if cpu.get_pc() == 0x34 {
-        //     break 'main_loop;
-        // }
+        count += 1;
+        if cpu.get_pc() == 0x40 {
+            break 'main_loop;
+        }
 
     }
 
-    // println!("count: {:?}", count);
 
     'read_loop: loop {
 
+        println!("Count: {:?}", count);
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
         println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
         println!("{:?}", cpu.get_regset_ref());
+        cpu.get_mem_ref().dump("tmp/mem.bin");
 
         cpu.step();
 

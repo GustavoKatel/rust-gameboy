@@ -1,4 +1,7 @@
 
+use std::io::prelude::*;
+use std::fs::File;
+
 pub struct GBMem {
     map: Vec<u8>,
 }
@@ -17,6 +20,11 @@ impl GBMem {
 
     pub fn get(&self, pos: usize) -> u8 {
         self.map[pos].clone()
+    }
+
+    pub fn dump(&self, filename: &str) {
+        let mut f = File::create(filename).unwrap();
+        f.write_all(&self.map).unwrap();
     }
 
 }

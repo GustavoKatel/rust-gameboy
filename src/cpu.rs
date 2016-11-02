@@ -138,7 +138,7 @@ impl GBCpu {
             let mut byte = self.mem.get(self.pc as usize) as u16;
             byte |= (self.mem.get((self.pc+1) as usize) as u16) << 8;
             if is_address {
-                byte += 0xFF00;
+                // byte += 0xFF00;
                 GBData::ADDRESS{ addr: byte as usize, size: 2 }
             } else {
                 GBData::D16(byte)
