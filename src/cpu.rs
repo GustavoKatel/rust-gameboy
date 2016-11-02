@@ -16,7 +16,7 @@ enum GBData {
     D16(u16),
     D8(u8),
     R8(i8),
-    ADDRESS(usize),
+    ADDRESS{ addr: usize, size: u16 },
     SP, PC,
     REG{name: String, inc: bool, dec: bool, addr: bool},
 }
@@ -51,6 +51,30 @@ impl GBCpu {
 
     pub fn step(&mut self) {
         self.exec_next_op();
+    }
+
+    fn stack_push(&mut self, value: u16) {
+
+        // most significant part
+        self.sp -= 1;
+        self.mem.put(self.sp as usize, (value >> 8) as u8 );
+
+        // least significant part
+        self.sp -= 1;
+        self.mem.put(self.sp as usize, value as u8 );
+
+    }
+
+    fn stack_pop(&mut self) -> u16 {
+        // least significant part
+        let mut value = self.mem.get(self.sp as usize) as u16;
+        self.sp += 1;
+
+        // most significant part
+        value |= (self.mem.get(self.sp as usize) as u16) << 8;
+        self.sp += 1;
+
+        value
     }
 
     fn arg_parse(&self, arg_in: String) -> GBData {
@@ -89,7 +113,7 @@ impl GBCpu {
             let mut byte = self.mem.get(self.pc as usize) as u8;
             if is_address {
                 byte += 0xFF00;
-                GBData::ADDRESS(byte as usize)
+                GBData::ADDRESS{ addr: byte as usize, size: 1 }
             } else {
                 GBData::D8(byte)
             }
@@ -98,7 +122,7 @@ impl GBCpu {
             byte |= (self.mem.get((self.pc+1) as usize) as u16) << 8;
             if is_address {
                 byte += 0xFF00;
-                GBData::ADDRESS(byte as usize)
+                GBData::ADDRESS{ addr: byte as usize, size: 2 }
             } else {
                 GBData::D16(byte)
             }
@@ -106,15 +130,19 @@ impl GBCpu {
             let mut byte = self.mem.get(self.pc as usize) as u16;
             if is_address {
                 byte += 0xFF00;
-                GBData::ADDRESS(byte as usize)
+                GBData::ADDRESS{ addr: byte as usize, size: 1 }
             } else {
                 GBData::D8(byte as u8)
             }
         } else if arg == "a16" {
             let mut byte = self.mem.get(self.pc as usize) as u16;
             byte |= (self.mem.get((self.pc+1) as usize) as u16) << 8;
-            byte += 0xFF00;
-            GBData::ADDRESS(byte as usize)
+            if is_address {
+                byte += 0xFF00;
+                GBData::ADDRESS{ addr: byte as usize, size: 2 }
+            } else {
+                GBData::D16(byte)
+            }
 
         } else {
             // Register fallback
@@ -153,8 +181,9 @@ impl GBCpu {
 
                 value
             },
-            &GBData::ADDRESS(addr) => {
-                addr as u16
+            &GBData::ADDRESS{ addr, size } => {
+                self.pc += size;
+                self.mem.get(addr as usize) as u16
             },
             &GBData::SP => {
                 self.sp
@@ -179,6 +208,40 @@ impl GBCpu {
     }
 
     fn op_call<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+        println!("CALL {}", args.join(","));
+        self.pc += 1;
+
+        // 0	1	2	3
+        // Z	N	H	C
+        let flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
+
+        let condition = match args[0] {
+            "NZ" => { // Z = 0
+                !flags.get(0).unwrap()
+            },
+            "Z" => { // Z != 0
+                flags.get(0).unwrap()
+            },
+            "NC" => { // C = 0
+                !flags.get(3).unwrap()
+            },
+            "C" => { // C != 0
+                flags.get(3).unwrap()
+            },
+            _ => true,
+        };
+
+        let destination = {
+            let argp = self.arg_parse(args.last().unwrap().to_string());
+            self.data_parse(&argp)
+        };
+
+        if condition {
+            let v = self.pc;
+            self.stack_push(v);
+            self.pc = destination;
+        }
 
     }
 
@@ -216,6 +279,7 @@ impl GBCpu {
 
     fn op_inc<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        // TODO: see affected flags id:5
         println!("INC {}", args.join(","));
         self.pc += 1;
 
@@ -282,6 +346,27 @@ impl GBCpu {
 
     fn op_ldh<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        println!("LDH {}", args.join(","));
+        self.pc += 1;
+
+        // match destination
+        match self.arg_parse(args[0].to_string()) {
+            GBData::ADDRESS{ addr, size } => {
+                self.pc += size;
+
+                let argp = self.arg_parse(args[1].to_string());
+                let data = self.data_parse(&argp);
+                self.mem.put(addr as usize, data as u8);
+            },
+            GBData::REG{name, inc, dec, addr} => {
+
+                let argp = self.arg_parse(args[1].to_string());
+                let data = self.data_parse(&argp);
+                self.registers.put(&name, data);
+            },
+            _ => {},
+        };
+
     }
 
     fn op_ld<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -318,7 +403,9 @@ impl GBCpu {
                 }
 
             },
-            GBData::ADDRESS(addr) => {
+            GBData::ADDRESS{ addr, size } => {
+                // move the program counter over the address size that we just read
+                self.pc += size;
                 let argp = self.arg_parse(args[1].to_string());
                 let mut data = self.data_parse(&argp);
 
@@ -343,6 +430,19 @@ impl GBCpu {
 
     fn op_pop<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        println!("POP {}", args.join(","));
+        self.pc += 1;
+
+        match self.arg_parse(args[0].to_string()) {
+            GBData::REG{name, inc, dec, addr} => {
+
+                let value = self.stack_pop();
+                self.registers.put(&name, value);
+
+            },
+            _ => {},
+        };
+
     }
 
     fn op_prefix<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -356,6 +456,19 @@ impl GBCpu {
 
     fn op_push<'a> (&mut self, args: &'a Vec<&'a str>) {
 
+        println!("PUSH {}", args.join(","));
+        self.pc += 1;
+
+        match self.arg_parse(args[0].to_string()) {
+            GBData::REG{name, inc, dec, addr} => {
+
+                let value = self.registers.get(&name);
+                self.stack_push(value);
+
+            },
+            _ => {},
+        };
+
     }
 
     fn op_reti(&mut self) {
@@ -367,6 +480,34 @@ impl GBCpu {
     }
 
     fn op_rla(&mut self) {
+
+        // Flags affected:
+        // Z - Set if result is zero. (0)
+        // N - Reset. (1)
+        // H - Reset. (2)
+        // C - Contains old bit 7 (0 in BitVec) data. (3)
+        println!("RLA");
+        self.pc += 1;
+
+        let mut flags = self.registers.get(&"F".to_string()) as u8;
+        let mut flags_bits = BitVec::from_bytes(&[flags]);
+
+        // reset H
+        flags_bits.set(2, false);
+        // reset N
+        flags_bits.set(1, false);
+
+        let data = self.registers.get(&"A".to_string()) as u8;
+
+        let mut bits = BitVec::from_bytes(&[data]);
+        flags_bits.set( 3, bits.get(0).unwrap() );
+        let data_rotated = data.rotate_left(1);
+
+        // zero flag
+        flags_bits.set(0, data_rotated == 0x0);
+
+        self.registers.put(&"F".to_string(), flags_bits.to_bytes()[0] as u16);
+        self.registers.put(&"A".to_string(), data_rotated as u16);
 
     }
 
@@ -430,6 +571,7 @@ impl GBCpu {
             _ => 0x0,
         };
 
+        // THE XOR
         reg_a ^= data;
 
         let mut flags = BitVec::from_elem(8, false);
@@ -484,6 +626,46 @@ impl GBCpu {
     }
 
     fn op_rl<'a> (&mut self, args: &'a Vec<&'a str>) {
+
+        // Flags affected:
+        // Z - Set if result is zero. (0)
+        // N - Reset. (1)
+        // H - Reset. (2)
+        // C - Contains old bit 7 (0 in BitVec) data. (3)
+        println!("RL {}", args.join(","));
+        self.pc += 1;
+
+        let mut flags = self.registers.get(&"F".to_string()) as u8;
+        let mut flags_bits = BitVec::from_bytes(&[flags]);
+
+        // reset H
+        flags_bits.set(2, false);
+        // reset N
+        flags_bits.set(1, false);
+
+        match self.arg_parse(args[0].to_string()) {
+            GBData::REG{name, addr, ..} => {
+                let data = {
+                    if addr {
+                        self.mem.get(self.registers.get(&name) as usize)
+                    } else {
+                        self.registers.get(&name) as u8
+                    }
+                };
+
+                let mut bits = BitVec::from_bytes(&[data]);
+                flags_bits.set( 3, bits.get(0).unwrap() );
+                let data_rotated = data.rotate_left(1);
+
+                // zero flag
+                flags_bits.set(0, data_rotated == 0x0);
+
+                self.registers.put(&"F".to_string(), flags_bits.to_bytes()[0] as u16);
+                self.registers.put(&name, data_rotated as u16);
+
+            },
+            _ => {},
+        };
 
     }
 
