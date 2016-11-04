@@ -40,6 +40,7 @@ fn main() {
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
         println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
+        println!("Cycles: {}", cpu.get_cycles());
         println!("{:?}", cpu.get_regset_ref());
 
         cpu.step();
@@ -64,6 +65,7 @@ fn main() {
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
         println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
+        println!("Cycles: {}", cpu.get_cycles());
         println!("{:?}", cpu.get_regset_ref());
         cpu.get_mem_ref().dump("tmp/mem.bin");
 
@@ -71,6 +73,8 @@ fn main() {
 
 
         println!("-------------", );
+
+        count += 1;
 
         let stdin = io::stdin();
         let line = stdin.lock().lines().next().unwrap().unwrap();

@@ -59,6 +59,14 @@ impl GBCpu {
         &self.registers
     }
 
+    pub fn get_cycles(&self) -> usize {
+        self.cycles
+    }
+
+    pub fn set_cycles(&mut self, cycles: usize) {
+        self.cycles = cycles;
+    }
+
     pub fn step(&mut self) {
         self.exec_next_op();
     }
@@ -1481,7 +1489,7 @@ impl GBCpu {
         self.instruction_cycle_map.insert(0x1d, 4);
         self.instruction_cycle_map.insert(0x1e, 8);
         self.instruction_cycle_map.insert(0x1f, 4);
-        self.instruction_cycle_map.insert(0x20, 12/8);
+        self.instruction_cycle_map.insert(0x20, 8);
         self.instruction_cycle_map.insert(0x21, 12);
         self.instruction_cycle_map.insert(0x22, 8);
         self.instruction_cycle_map.insert(0x23, 8);
@@ -1489,7 +1497,7 @@ impl GBCpu {
         self.instruction_cycle_map.insert(0x25, 4);
         self.instruction_cycle_map.insert(0x26, 8);
         self.instruction_cycle_map.insert(0x27, 4);
-        self.instruction_cycle_map.insert(0x28, 12/8);
+        self.instruction_cycle_map.insert(0x28, 8);
         self.instruction_cycle_map.insert(0x29, 8);
         self.instruction_cycle_map.insert(0x2a, 8);
         self.instruction_cycle_map.insert(0x2b, 8);
@@ -1497,7 +1505,7 @@ impl GBCpu {
         self.instruction_cycle_map.insert(0x2d, 4);
         self.instruction_cycle_map.insert(0x2e, 8);
         self.instruction_cycle_map.insert(0x2f, 4);
-        self.instruction_cycle_map.insert(0x30, 12/8);
+        self.instruction_cycle_map.insert(0x30, 8);
         self.instruction_cycle_map.insert(0x31, 12);
         self.instruction_cycle_map.insert(0x32, 8);
         self.instruction_cycle_map.insert(0x33, 8);
@@ -1505,7 +1513,7 @@ impl GBCpu {
         self.instruction_cycle_map.insert(0x35, 12);
         self.instruction_cycle_map.insert(0x36, 12);
         self.instruction_cycle_map.insert(0x37, 4);
-        self.instruction_cycle_map.insert(0x38, 12/8);
+        self.instruction_cycle_map.insert(0x38, 8);
         self.instruction_cycle_map.insert(0x39, 8);
         self.instruction_cycle_map.insert(0x3a, 8);
         self.instruction_cycle_map.insert(0x3b, 8);
@@ -1641,35 +1649,35 @@ impl GBCpu {
         self.instruction_cycle_map.insert(0xbd, 4);
         self.instruction_cycle_map.insert(0xbe, 8);
         self.instruction_cycle_map.insert(0xbf, 4);
-        self.instruction_cycle_map.insert(0xc0, 20/8);
+        self.instruction_cycle_map.insert(0xc0, 8);
         self.instruction_cycle_map.insert(0xc1, 12);
-        self.instruction_cycle_map.insert(0xc2, 16/12);
+        self.instruction_cycle_map.insert(0xc2, 12);
         self.instruction_cycle_map.insert(0xc3, 16);
-        self.instruction_cycle_map.insert(0xc4, 24/12);
+        self.instruction_cycle_map.insert(0xc4, 12);
         self.instruction_cycle_map.insert(0xc5, 16);
         self.instruction_cycle_map.insert(0xc6, 8);
         self.instruction_cycle_map.insert(0xc7, 16);
-        self.instruction_cycle_map.insert(0xc8, 20/8);
+        self.instruction_cycle_map.insert(0xc8, 8);
         self.instruction_cycle_map.insert(0xc9, 16);
-        self.instruction_cycle_map.insert(0xca, 16/12);
+        self.instruction_cycle_map.insert(0xca, 12);
         self.instruction_cycle_map.insert(0xcb, 4);
-        self.instruction_cycle_map.insert(0xcc, 24/12);
+        self.instruction_cycle_map.insert(0xcc, 12);
         self.instruction_cycle_map.insert(0xcd, 24);
         self.instruction_cycle_map.insert(0xce, 8);
         self.instruction_cycle_map.insert(0xcf, 16);
-        self.instruction_cycle_map.insert(0xd0, 20/8);
+        self.instruction_cycle_map.insert(0xd0, 8);
         self.instruction_cycle_map.insert(0xd1, 12);
-        self.instruction_cycle_map.insert(0xd2, 16/12);
+        self.instruction_cycle_map.insert(0xd2, 12);
         self.instruction_cycle_map.insert(0xd3, 0);
-        self.instruction_cycle_map.insert(0xd4, 24/12);
+        self.instruction_cycle_map.insert(0xd4, 12);
         self.instruction_cycle_map.insert(0xd5, 16);
         self.instruction_cycle_map.insert(0xd6, 8);
         self.instruction_cycle_map.insert(0xd7, 16);
-        self.instruction_cycle_map.insert(0xd8, 20/8);
+        self.instruction_cycle_map.insert(0xd8, 8);
         self.instruction_cycle_map.insert(0xd9, 16);
-        self.instruction_cycle_map.insert(0xda, 16/12);
+        self.instruction_cycle_map.insert(0xda, 12);
         self.instruction_cycle_map.insert(0xdb, 0);
-        self.instruction_cycle_map.insert(0xdc, 24/12);
+        self.instruction_cycle_map.insert(0xdc, 12);
         self.instruction_cycle_map.insert(0xdd, 0);
         self.instruction_cycle_map.insert(0xde, 8);
         self.instruction_cycle_map.insert(0xdf, 16);
