@@ -12,7 +12,7 @@ pub struct GBCpu {
     mem : GBMem, // ram
     registers: GBRegisterSet,
     stop_flag: bool, // stop flag used by the stop instruction
-    cycles: usize,
+    last_op_cycles: usize,
     instruction_cycle_map: BTreeMap<u16, usize>,
 }
 
@@ -34,7 +34,7 @@ impl GBCpu {
             mem: mem,
             registers: GBRegisterSet::new(vec!["AF", "BC", "DE", "HL"]),
             stop_flag: false,
-            cycles: 0,
+            last_op_cycles: 0,
             instruction_cycle_map: BTreeMap::new(),
         };
 
@@ -55,16 +55,16 @@ impl GBCpu {
         &self.mem
     }
 
+    pub fn get_mem_mut<'a> (&'a mut self) -> &'a mut GBMem {
+        &mut self.mem
+    }
+
     pub fn get_regset_ref<'a> (&'a self) -> &'a GBRegisterSet {
         &self.registers
     }
 
-    pub fn get_cycles(&self) -> usize {
-        self.cycles
-    }
-
-    pub fn set_cycles(&mut self, cycles: usize) {
-        self.cycles = cycles;
+    pub fn get_last_op_cycles(&self) -> usize {
+        self.last_op_cycles
     }
 
     pub fn step(&mut self) {
@@ -229,6 +229,7 @@ impl GBCpu {
 
         println!("CALL {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         // 0	1	2	3
@@ -262,8 +263,6 @@ impl GBCpu {
             self.pc = destination;
         }
 
-        self.cycles += cycles;
-
     }
 
     fn op_ccf(&mut self) {
@@ -283,6 +282,7 @@ impl GBCpu {
         // C - Set for no borrow. (Set if A < n.) (3)
         println!("CP {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         let mut reg_a = self.registers.get(&"A".to_string());
@@ -307,8 +307,6 @@ impl GBCpu {
 
         self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
 
-        self.cycles += cycles;
-
     }
 
     fn op_daa(&mut self) {
@@ -324,6 +322,7 @@ impl GBCpu {
         // C - Not affected. (3)
         println!("DEC {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         let mut flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
@@ -378,8 +377,6 @@ impl GBCpu {
             _ => {},
         }
 
-        self.cycles += cycles;
-
     }
 
     fn op_di(&mut self) {
@@ -403,6 +400,7 @@ impl GBCpu {
         // C - Not affected. (3)
         println!("INC {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         let mut flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
@@ -457,8 +455,6 @@ impl GBCpu {
             _ => {},
         }
 
-        self.cycles += cycles;
-
     }
 
     fn op_jp<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -469,6 +465,7 @@ impl GBCpu {
 
         println!("JR {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         // 0	1	2	3
@@ -501,14 +498,13 @@ impl GBCpu {
             self.pc = destination;
         }
 
-        self.cycles += cycles;
-
     }
 
     fn op_ldh<'a> (&mut self, args: &'a Vec<&'a str>) {
 
         println!("LDH {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         // match destination
@@ -529,8 +525,6 @@ impl GBCpu {
             _ => {},
         };
 
-        self.cycles += cycles;
-
     }
 
     fn op_ld<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -539,6 +533,7 @@ impl GBCpu {
 
         println!("LD {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
 
@@ -580,8 +575,6 @@ impl GBCpu {
             _ => {},
         };
 
-        self.cycles += cycles;
-
     }
 
     fn op_none(&mut self) {
@@ -600,6 +593,7 @@ impl GBCpu {
 
         println!("POP {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         match self.arg_parse(args[0].to_string()) {
@@ -611,8 +605,6 @@ impl GBCpu {
             },
             _ => {},
         };
-
-        self.cycles += cycles;
 
     }
 
@@ -629,6 +621,7 @@ impl GBCpu {
 
         println!("PUSH {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         match self.arg_parse(args[0].to_string()) {
@@ -641,8 +634,6 @@ impl GBCpu {
             _ => {},
         };
 
-        self.cycles += cycles;
-
     }
 
     fn op_reti(&mut self) {
@@ -653,6 +644,7 @@ impl GBCpu {
 
         println!("RET {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         // 0	1	2	3
@@ -689,8 +681,6 @@ impl GBCpu {
             self.pc = destination;
         }
 
-        self.cycles += cycles;
-
     }
 
     fn op_rla(&mut self) {
@@ -702,6 +692,7 @@ impl GBCpu {
         // C - Contains old bit 7 (0 in BitVec) data. (3)
         println!("RLA");
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         let mut flags = self.registers.get(&"F".to_string()) as u8;
@@ -723,8 +714,6 @@ impl GBCpu {
 
         self.registers.put(&"F".to_string(), flags_bits.to_bytes()[0] as u16);
         self.registers.put(&"A".to_string(), data_rotated as u16);
-
-        self.cycles += cycles;
 
     }
 
@@ -769,6 +758,7 @@ impl GBCpu {
         // C - Reset.
         println!("XOR {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         let mut reg_a = self.registers.get(&"A".to_string());
@@ -800,8 +790,6 @@ impl GBCpu {
         self.registers.put(&"A".to_string(), reg_a);
         self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
 
-        self.cycles += cycles;
-
     }
 
     fn op_bit<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -813,6 +801,7 @@ impl GBCpu {
         // C - Not affected.(3)
         println!("BIT {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         // first arg is an integer
@@ -836,8 +825,6 @@ impl GBCpu {
 
         self.registers.put(&"F".to_string(), flags as u16);
 
-        self.cycles += cycles;
-
     }
 
     fn op_res<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -857,6 +844,7 @@ impl GBCpu {
         // C - Contains old bit 7 (0 in BitVec) data. (3)
         println!("RL {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
+        self.last_op_cycles = cycles;
         self.pc += 1;
 
         let mut flags = self.registers.get(&"F".to_string()) as u8;
@@ -890,8 +878,6 @@ impl GBCpu {
             },
             _ => {},
         };
-
-        self.cycles += cycles;
 
     }
 

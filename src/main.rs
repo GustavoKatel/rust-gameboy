@@ -4,6 +4,7 @@ extern crate  bit_vec;
 mod regset;
 mod cpu;
 mod mem;
+mod gpu;
 
 use std::io::prelude::*;
 use std::fs::File;
@@ -12,6 +13,7 @@ use std::io;
 
 use cpu::GBCpu;
 use mem::GBMem;
+use gpu::GBGpu;
 
 fn main() {
 
@@ -29,6 +31,8 @@ fn main() {
 
     let mut cpu = GBCpu::new(mem);
 
+    let mut gpu = GBGpu::new();
+
     let timeout = time::Duration::from_millis(16);
 
     let mut count = 0;
@@ -37,14 +41,14 @@ fn main() {
     // for _ in 0..24577+5+12+39+39 {
     // for _ in 0..28817 {
 
+        println!("Cycles: {}", cpu.get_last_op_cycles());
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
         println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
-        println!("Cycles: {}", cpu.get_cycles());
         println!("{:?}", cpu.get_regset_ref());
 
         cpu.step();
-
+        gpu.step(&mut cpu);
 
         println!("-------------", );
 
@@ -62,10 +66,10 @@ fn main() {
     'read_loop: loop {
 
         println!("Count: {:?}", count);
+        println!("Cycles: {}", cpu.get_last_op_cycles());
         println!("SP: 0x{:04X}", cpu.get_sp());
         println!("PC: 0x{:04X}", cpu.get_pc());
         println!("OP: 0x{:04X}", cpu.get_mem_ref().get(cpu.get_pc() as usize));
-        println!("Cycles: {}", cpu.get_cycles());
         println!("{:?}", cpu.get_regset_ref());
         cpu.get_mem_ref().dump("tmp/mem.bin");
 
