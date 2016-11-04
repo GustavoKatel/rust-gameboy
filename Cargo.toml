@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["Gustavo Sampaio <gbritosampaio@gmail.com>"]
 
 [dependencies]
+sdl2 = "0.24"
 log = "0.3"
 bit-vec = "0.4.3"

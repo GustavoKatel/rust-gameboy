@@ -1,18 +1,20 @@
 #[macro_use] extern crate log;
 extern crate  bit_vec;
+extern crate sdl2;
 
 mod regset;
 mod cpu;
 mod mem;
 mod gpu;
+mod sdl_display;
 
 use std::io::prelude::*;
 use std::fs::File;
-use std::{thread, time};
 use std::io;
 
 use cpu::GBCpu;
 use mem::GBMem;
+use sdl_display::{SDLDisplay, SDLDisplayEvent};
 use gpu::GBGpu;
 
 fn main() {
@@ -31,9 +33,9 @@ fn main() {
 
     let mut cpu = GBCpu::new(mem);
 
-    let mut gpu = GBGpu::new();
+    let mut display = SDLDisplay::new(600, 800, "rust-gameboy".to_string());
 
-    let timeout = time::Duration::from_millis(16);
+    let mut gpu = GBGpu::new();
 
     let mut count = 0;
 
@@ -48,16 +50,20 @@ fn main() {
         println!("{:?}", cpu.get_regset_ref());
 
         cpu.step();
-        gpu.step(&mut cpu);
+        gpu.step(&mut cpu, &mut display);
+        display.step();
 
         println!("-------------", );
-
-
-        // thread::sleep(timeout);
 
         count += 1;
         if cpu.get_pc() == 0x40 {
             break 'main_loop;
+        }
+
+        for event in display.get_events().iter() {
+            match event {
+                &SDLDisplayEvent::Quit => break 'main_loop,
+            }
         }
 
     }
@@ -74,7 +80,7 @@ fn main() {
         cpu.get_mem_ref().dump("tmp/mem.bin");
 
         cpu.step();
-
+        gpu.step(&mut cpu, &mut display);
 
         println!("-------------", );
 
@@ -85,6 +91,12 @@ fn main() {
 
         if line == "q" {
             break 'read_loop;
+        }
+
+        for event in display.get_events().iter() {
+            match event {
+                &SDLDisplayEvent::Quit => break 'read_loop,
+            }
         }
 
     }
