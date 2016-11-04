@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 #[macro_use] use log;
 use bit_vec::BitVec;
 
@@ -10,6 +12,8 @@ pub struct GBCpu {
     mem : GBMem, // ram
     registers: GBRegisterSet,
     stop_flag: bool, // stop flag used by the stop instruction
+    cycles: usize,
+    instruction_cycle_map: BTreeMap<u16, usize>,
 }
 
 enum GBData {
@@ -24,13 +28,19 @@ enum GBData {
 impl GBCpu {
 
     pub fn new(mem: GBMem) -> GBCpu {
-        GBCpu {
+        let mut cpu = GBCpu {
             sp: 0x0,
             pc: 0x0,
             mem: mem,
             registers: GBRegisterSet::new(vec!["AF", "BC", "DE", "HL"]),
             stop_flag: false,
-        }
+            cycles: 0,
+            instruction_cycle_map: BTreeMap::new(),
+        };
+
+        cpu.init_cycle_map();
+
+        cpu
     }
 
     pub fn get_sp(&self) -> u16 {
@@ -210,6 +220,7 @@ impl GBCpu {
     fn op_call<'a> (&mut self, args: &'a Vec<&'a str>) {
 
         println!("CALL {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         // 0	1	2	3
@@ -243,6 +254,8 @@ impl GBCpu {
             self.pc = destination;
         }
 
+        self.cycles += cycles;
+
     }
 
     fn op_ccf(&mut self) {
@@ -261,6 +274,7 @@ impl GBCpu {
         // H - Set if no borrow from bit 4. (2)
         // C - Set for no borrow. (Set if A < n.) (3)
         println!("CP {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         let mut reg_a = self.registers.get(&"A".to_string());
@@ -285,6 +299,8 @@ impl GBCpu {
 
         self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
 
+        self.cycles += cycles;
+
     }
 
     fn op_daa(&mut self) {
@@ -299,6 +315,7 @@ impl GBCpu {
         // H - Set if no borrow from bit 4. (2)
         // C - Not affected. (3)
         println!("DEC {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         let mut flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
@@ -353,6 +370,8 @@ impl GBCpu {
             _ => {},
         }
 
+        self.cycles += cycles;
+
     }
 
     fn op_di(&mut self) {
@@ -375,6 +394,7 @@ impl GBCpu {
         // H - Set if carry from bit 3. (2)
         // C - Not affected. (3)
         println!("INC {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         let mut flags = BitVec::from_bytes(&[ self.registers.get(&"F".to_string()) as u8 ]);
@@ -429,6 +449,8 @@ impl GBCpu {
             _ => {},
         }
 
+        self.cycles += cycles;
+
     }
 
     fn op_jp<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -438,6 +460,7 @@ impl GBCpu {
     fn op_jr<'a> (&mut self, args: &'a Vec<&'a str>) {
 
         println!("JR {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         // 0	1	2	3
@@ -469,11 +492,15 @@ impl GBCpu {
         if condition {
             self.pc = destination;
         }
+
+        self.cycles += cycles;
+
     }
 
     fn op_ldh<'a> (&mut self, args: &'a Vec<&'a str>) {
 
         println!("LDH {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         // match destination
@@ -494,6 +521,8 @@ impl GBCpu {
             _ => {},
         };
 
+        self.cycles += cycles;
+
     }
 
     fn op_ld<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -501,7 +530,9 @@ impl GBCpu {
         // TODO:0 check affected flags when op (0xF8) LD HL,SP+r8 id:0
 
         println!("LD {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
+
 
         // match destination
         match self.arg_parse(args[0].to_string()) {
@@ -541,6 +572,8 @@ impl GBCpu {
             _ => {},
         };
 
+        self.cycles += cycles;
+
     }
 
     fn op_none(&mut self) {
@@ -558,6 +591,7 @@ impl GBCpu {
     fn op_pop<'a> (&mut self, args: &'a Vec<&'a str>) {
 
         println!("POP {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         match self.arg_parse(args[0].to_string()) {
@@ -569,6 +603,8 @@ impl GBCpu {
             },
             _ => {},
         };
+
+        self.cycles += cycles;
 
     }
 
@@ -584,6 +620,7 @@ impl GBCpu {
     fn op_push<'a> (&mut self, args: &'a Vec<&'a str>) {
 
         println!("PUSH {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         match self.arg_parse(args[0].to_string()) {
@@ -596,6 +633,8 @@ impl GBCpu {
             _ => {},
         };
 
+        self.cycles += cycles;
+
     }
 
     fn op_reti(&mut self) {
@@ -605,6 +644,7 @@ impl GBCpu {
     fn op_ret<'a> (&mut self, args: &'a Vec<&'a str>) {
 
         println!("RET {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         // 0	1	2	3
@@ -641,6 +681,8 @@ impl GBCpu {
             self.pc = destination;
         }
 
+        self.cycles += cycles;
+
     }
 
     fn op_rla(&mut self) {
@@ -651,6 +693,7 @@ impl GBCpu {
         // H - Reset. (2)
         // C - Contains old bit 7 (0 in BitVec) data. (3)
         println!("RLA");
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         let mut flags = self.registers.get(&"F".to_string()) as u8;
@@ -672,6 +715,8 @@ impl GBCpu {
 
         self.registers.put(&"F".to_string(), flags_bits.to_bytes()[0] as u16);
         self.registers.put(&"A".to_string(), data_rotated as u16);
+
+        self.cycles += cycles;
 
     }
 
@@ -715,6 +760,7 @@ impl GBCpu {
         // H - Reset.
         // C - Reset.
         println!("XOR {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         let mut reg_a = self.registers.get(&"A".to_string());
@@ -746,6 +792,8 @@ impl GBCpu {
         self.registers.put(&"A".to_string(), reg_a);
         self.registers.put(&"F".to_string(), flags.to_bytes()[0] as u16);
 
+        self.cycles += cycles;
+
     }
 
     fn op_bit<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -756,6 +804,7 @@ impl GBCpu {
         // H - Set. (2)
         // C - Not affected.(3)
         println!("BIT {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         // first arg is an integer
@@ -779,6 +828,8 @@ impl GBCpu {
 
         self.registers.put(&"F".to_string(), flags as u16);
 
+        self.cycles += cycles;
+
     }
 
     fn op_res<'a> (&mut self, args: &'a Vec<&'a str>) {
@@ -797,6 +848,7 @@ impl GBCpu {
         // H - Reset. (2)
         // C - Contains old bit 7 (0 in BitVec) data. (3)
         println!("RL {}", args.join(","));
+        let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
         self.pc += 1;
 
         let mut flags = self.registers.get(&"F".to_string()) as u8;
@@ -830,6 +882,8 @@ impl GBCpu {
             },
             _ => {},
         };
+
+        self.cycles += cycles;
 
     }
 
@@ -1392,6 +1446,522 @@ impl GBCpu {
             0xff => self.op_set(&vec!("7","A")),
             _ => panic!("Unknown OP"),
         }
+    }
+
+    fn init_cycle_map(&mut self) {
+        self.instruction_cycle_map.insert(0x0, 4);
+        self.instruction_cycle_map.insert(0x1, 12);
+        self.instruction_cycle_map.insert(0x2, 8);
+        self.instruction_cycle_map.insert(0x3, 8);
+        self.instruction_cycle_map.insert(0x4, 4);
+        self.instruction_cycle_map.insert(0x5, 4);
+        self.instruction_cycle_map.insert(0x6, 8);
+        self.instruction_cycle_map.insert(0x7, 4);
+        self.instruction_cycle_map.insert(0x8, 20);
+        self.instruction_cycle_map.insert(0x9, 8);
+        self.instruction_cycle_map.insert(0xa, 8);
+        self.instruction_cycle_map.insert(0xb, 8);
+        self.instruction_cycle_map.insert(0xc, 4);
+        self.instruction_cycle_map.insert(0xd, 4);
+        self.instruction_cycle_map.insert(0xe, 8);
+        self.instruction_cycle_map.insert(0xf, 4);
+        self.instruction_cycle_map.insert(0x10, 4);
+        self.instruction_cycle_map.insert(0x11, 12);
+        self.instruction_cycle_map.insert(0x12, 8);
+        self.instruction_cycle_map.insert(0x13, 8);
+        self.instruction_cycle_map.insert(0x14, 4);
+        self.instruction_cycle_map.insert(0x15, 4);
+        self.instruction_cycle_map.insert(0x16, 8);
+        self.instruction_cycle_map.insert(0x17, 4);
+        self.instruction_cycle_map.insert(0x18, 12);
+        self.instruction_cycle_map.insert(0x19, 8);
+        self.instruction_cycle_map.insert(0x1a, 8);
+        self.instruction_cycle_map.insert(0x1b, 8);
+        self.instruction_cycle_map.insert(0x1c, 4);
+        self.instruction_cycle_map.insert(0x1d, 4);
+        self.instruction_cycle_map.insert(0x1e, 8);
+        self.instruction_cycle_map.insert(0x1f, 4);
+        self.instruction_cycle_map.insert(0x20, 12/8);
+        self.instruction_cycle_map.insert(0x21, 12);
+        self.instruction_cycle_map.insert(0x22, 8);
+        self.instruction_cycle_map.insert(0x23, 8);
+        self.instruction_cycle_map.insert(0x24, 4);
+        self.instruction_cycle_map.insert(0x25, 4);
+        self.instruction_cycle_map.insert(0x26, 8);
+        self.instruction_cycle_map.insert(0x27, 4);
+        self.instruction_cycle_map.insert(0x28, 12/8);
+        self.instruction_cycle_map.insert(0x29, 8);
+        self.instruction_cycle_map.insert(0x2a, 8);
+        self.instruction_cycle_map.insert(0x2b, 8);
+        self.instruction_cycle_map.insert(0x2c, 4);
+        self.instruction_cycle_map.insert(0x2d, 4);
+        self.instruction_cycle_map.insert(0x2e, 8);
+        self.instruction_cycle_map.insert(0x2f, 4);
+        self.instruction_cycle_map.insert(0x30, 12/8);
+        self.instruction_cycle_map.insert(0x31, 12);
+        self.instruction_cycle_map.insert(0x32, 8);
+        self.instruction_cycle_map.insert(0x33, 8);
+        self.instruction_cycle_map.insert(0x34, 12);
+        self.instruction_cycle_map.insert(0x35, 12);
+        self.instruction_cycle_map.insert(0x36, 12);
+        self.instruction_cycle_map.insert(0x37, 4);
+        self.instruction_cycle_map.insert(0x38, 12/8);
+        self.instruction_cycle_map.insert(0x39, 8);
+        self.instruction_cycle_map.insert(0x3a, 8);
+        self.instruction_cycle_map.insert(0x3b, 8);
+        self.instruction_cycle_map.insert(0x3c, 4);
+        self.instruction_cycle_map.insert(0x3d, 4);
+        self.instruction_cycle_map.insert(0x3e, 8);
+        self.instruction_cycle_map.insert(0x3f, 4);
+        self.instruction_cycle_map.insert(0x40, 4);
+        self.instruction_cycle_map.insert(0x41, 4);
+        self.instruction_cycle_map.insert(0x42, 4);
+        self.instruction_cycle_map.insert(0x43, 4);
+        self.instruction_cycle_map.insert(0x44, 4);
+        self.instruction_cycle_map.insert(0x45, 4);
+        self.instruction_cycle_map.insert(0x46, 8);
+        self.instruction_cycle_map.insert(0x47, 4);
+        self.instruction_cycle_map.insert(0x48, 4);
+        self.instruction_cycle_map.insert(0x49, 4);
+        self.instruction_cycle_map.insert(0x4a, 4);
+        self.instruction_cycle_map.insert(0x4b, 4);
+        self.instruction_cycle_map.insert(0x4c, 4);
+        self.instruction_cycle_map.insert(0x4d, 4);
+        self.instruction_cycle_map.insert(0x4e, 8);
+        self.instruction_cycle_map.insert(0x4f, 4);
+        self.instruction_cycle_map.insert(0x50, 4);
+        self.instruction_cycle_map.insert(0x51, 4);
+        self.instruction_cycle_map.insert(0x52, 4);
+        self.instruction_cycle_map.insert(0x53, 4);
+        self.instruction_cycle_map.insert(0x54, 4);
+        self.instruction_cycle_map.insert(0x55, 4);
+        self.instruction_cycle_map.insert(0x56, 8);
+        self.instruction_cycle_map.insert(0x57, 4);
+        self.instruction_cycle_map.insert(0x58, 4);
+        self.instruction_cycle_map.insert(0x59, 4);
+        self.instruction_cycle_map.insert(0x5a, 4);
+        self.instruction_cycle_map.insert(0x5b, 4);
+        self.instruction_cycle_map.insert(0x5c, 4);
+        self.instruction_cycle_map.insert(0x5d, 4);
+        self.instruction_cycle_map.insert(0x5e, 8);
+        self.instruction_cycle_map.insert(0x5f, 4);
+        self.instruction_cycle_map.insert(0x60, 4);
+        self.instruction_cycle_map.insert(0x61, 4);
+        self.instruction_cycle_map.insert(0x62, 4);
+        self.instruction_cycle_map.insert(0x63, 4);
+        self.instruction_cycle_map.insert(0x64, 4);
+        self.instruction_cycle_map.insert(0x65, 4);
+        self.instruction_cycle_map.insert(0x66, 8);
+        self.instruction_cycle_map.insert(0x67, 4);
+        self.instruction_cycle_map.insert(0x68, 4);
+        self.instruction_cycle_map.insert(0x69, 4);
+        self.instruction_cycle_map.insert(0x6a, 4);
+        self.instruction_cycle_map.insert(0x6b, 4);
+        self.instruction_cycle_map.insert(0x6c, 4);
+        self.instruction_cycle_map.insert(0x6d, 4);
+        self.instruction_cycle_map.insert(0x6e, 8);
+        self.instruction_cycle_map.insert(0x6f, 4);
+        self.instruction_cycle_map.insert(0x70, 8);
+        self.instruction_cycle_map.insert(0x71, 8);
+        self.instruction_cycle_map.insert(0x72, 8);
+        self.instruction_cycle_map.insert(0x73, 8);
+        self.instruction_cycle_map.insert(0x74, 8);
+        self.instruction_cycle_map.insert(0x75, 8);
+        self.instruction_cycle_map.insert(0x76, 4);
+        self.instruction_cycle_map.insert(0x77, 8);
+        self.instruction_cycle_map.insert(0x78, 4);
+        self.instruction_cycle_map.insert(0x79, 4);
+        self.instruction_cycle_map.insert(0x7a, 4);
+        self.instruction_cycle_map.insert(0x7b, 4);
+        self.instruction_cycle_map.insert(0x7c, 4);
+        self.instruction_cycle_map.insert(0x7d, 4);
+        self.instruction_cycle_map.insert(0x7e, 8);
+        self.instruction_cycle_map.insert(0x7f, 4);
+        self.instruction_cycle_map.insert(0x80, 4);
+        self.instruction_cycle_map.insert(0x81, 4);
+        self.instruction_cycle_map.insert(0x82, 4);
+        self.instruction_cycle_map.insert(0x83, 4);
+        self.instruction_cycle_map.insert(0x84, 4);
+        self.instruction_cycle_map.insert(0x85, 4);
+        self.instruction_cycle_map.insert(0x86, 8);
+        self.instruction_cycle_map.insert(0x87, 4);
+        self.instruction_cycle_map.insert(0x88, 4);
+        self.instruction_cycle_map.insert(0x89, 4);
+        self.instruction_cycle_map.insert(0x8a, 4);
+        self.instruction_cycle_map.insert(0x8b, 4);
+        self.instruction_cycle_map.insert(0x8c, 4);
+        self.instruction_cycle_map.insert(0x8d, 4);
+        self.instruction_cycle_map.insert(0x8e, 8);
+        self.instruction_cycle_map.insert(0x8f, 4);
+        self.instruction_cycle_map.insert(0x90, 4);
+        self.instruction_cycle_map.insert(0x91, 4);
+        self.instruction_cycle_map.insert(0x92, 4);
+        self.instruction_cycle_map.insert(0x93, 4);
+        self.instruction_cycle_map.insert(0x94, 4);
+        self.instruction_cycle_map.insert(0x95, 4);
+        self.instruction_cycle_map.insert(0x96, 8);
+        self.instruction_cycle_map.insert(0x97, 4);
+        self.instruction_cycle_map.insert(0x98, 4);
+        self.instruction_cycle_map.insert(0x99, 4);
+        self.instruction_cycle_map.insert(0x9a, 4);
+        self.instruction_cycle_map.insert(0x9b, 4);
+        self.instruction_cycle_map.insert(0x9c, 4);
+        self.instruction_cycle_map.insert(0x9d, 4);
+        self.instruction_cycle_map.insert(0x9e, 8);
+        self.instruction_cycle_map.insert(0x9f, 4);
+        self.instruction_cycle_map.insert(0xa0, 4);
+        self.instruction_cycle_map.insert(0xa1, 4);
+        self.instruction_cycle_map.insert(0xa2, 4);
+        self.instruction_cycle_map.insert(0xa3, 4);
+        self.instruction_cycle_map.insert(0xa4, 4);
+        self.instruction_cycle_map.insert(0xa5, 4);
+        self.instruction_cycle_map.insert(0xa6, 8);
+        self.instruction_cycle_map.insert(0xa7, 4);
+        self.instruction_cycle_map.insert(0xa8, 4);
+        self.instruction_cycle_map.insert(0xa9, 4);
+        self.instruction_cycle_map.insert(0xaa, 4);
+        self.instruction_cycle_map.insert(0xab, 4);
+        self.instruction_cycle_map.insert(0xac, 4);
+        self.instruction_cycle_map.insert(0xad, 4);
+        self.instruction_cycle_map.insert(0xae, 8);
+        self.instruction_cycle_map.insert(0xaf, 4);
+        self.instruction_cycle_map.insert(0xb0, 4);
+        self.instruction_cycle_map.insert(0xb1, 4);
+        self.instruction_cycle_map.insert(0xb2, 4);
+        self.instruction_cycle_map.insert(0xb3, 4);
+        self.instruction_cycle_map.insert(0xb4, 4);
+        self.instruction_cycle_map.insert(0xb5, 4);
+        self.instruction_cycle_map.insert(0xb6, 8);
+        self.instruction_cycle_map.insert(0xb7, 4);
+        self.instruction_cycle_map.insert(0xb8, 4);
+        self.instruction_cycle_map.insert(0xb9, 4);
+        self.instruction_cycle_map.insert(0xba, 4);
+        self.instruction_cycle_map.insert(0xbb, 4);
+        self.instruction_cycle_map.insert(0xbc, 4);
+        self.instruction_cycle_map.insert(0xbd, 4);
+        self.instruction_cycle_map.insert(0xbe, 8);
+        self.instruction_cycle_map.insert(0xbf, 4);
+        self.instruction_cycle_map.insert(0xc0, 20/8);
+        self.instruction_cycle_map.insert(0xc1, 12);
+        self.instruction_cycle_map.insert(0xc2, 16/12);
+        self.instruction_cycle_map.insert(0xc3, 16);
+        self.instruction_cycle_map.insert(0xc4, 24/12);
+        self.instruction_cycle_map.insert(0xc5, 16);
+        self.instruction_cycle_map.insert(0xc6, 8);
+        self.instruction_cycle_map.insert(0xc7, 16);
+        self.instruction_cycle_map.insert(0xc8, 20/8);
+        self.instruction_cycle_map.insert(0xc9, 16);
+        self.instruction_cycle_map.insert(0xca, 16/12);
+        self.instruction_cycle_map.insert(0xcb, 4);
+        self.instruction_cycle_map.insert(0xcc, 24/12);
+        self.instruction_cycle_map.insert(0xcd, 24);
+        self.instruction_cycle_map.insert(0xce, 8);
+        self.instruction_cycle_map.insert(0xcf, 16);
+        self.instruction_cycle_map.insert(0xd0, 20/8);
+        self.instruction_cycle_map.insert(0xd1, 12);
+        self.instruction_cycle_map.insert(0xd2, 16/12);
+        self.instruction_cycle_map.insert(0xd3, 0);
+        self.instruction_cycle_map.insert(0xd4, 24/12);
+        self.instruction_cycle_map.insert(0xd5, 16);
+        self.instruction_cycle_map.insert(0xd6, 8);
+        self.instruction_cycle_map.insert(0xd7, 16);
+        self.instruction_cycle_map.insert(0xd8, 20/8);
+        self.instruction_cycle_map.insert(0xd9, 16);
+        self.instruction_cycle_map.insert(0xda, 16/12);
+        self.instruction_cycle_map.insert(0xdb, 0);
+        self.instruction_cycle_map.insert(0xdc, 24/12);
+        self.instruction_cycle_map.insert(0xdd, 0);
+        self.instruction_cycle_map.insert(0xde, 8);
+        self.instruction_cycle_map.insert(0xdf, 16);
+        self.instruction_cycle_map.insert(0xe0, 12);
+        self.instruction_cycle_map.insert(0xe1, 12);
+        self.instruction_cycle_map.insert(0xe2, 8);
+        self.instruction_cycle_map.insert(0xe3, 0);
+        self.instruction_cycle_map.insert(0xe4, 0);
+        self.instruction_cycle_map.insert(0xe5, 16);
+        self.instruction_cycle_map.insert(0xe6, 8);
+        self.instruction_cycle_map.insert(0xe7, 16);
+        self.instruction_cycle_map.insert(0xe8, 16);
+        self.instruction_cycle_map.insert(0xe9, 4);
+        self.instruction_cycle_map.insert(0xea, 16);
+        self.instruction_cycle_map.insert(0xeb, 0);
+        self.instruction_cycle_map.insert(0xec, 0);
+        self.instruction_cycle_map.insert(0xed, 0);
+        self.instruction_cycle_map.insert(0xee, 8);
+        self.instruction_cycle_map.insert(0xef, 16);
+        self.instruction_cycle_map.insert(0xf0, 12);
+        self.instruction_cycle_map.insert(0xf1, 12);
+        self.instruction_cycle_map.insert(0xf2, 8);
+        self.instruction_cycle_map.insert(0xf3, 4);
+        self.instruction_cycle_map.insert(0xf4, 0);
+        self.instruction_cycle_map.insert(0xf5, 16);
+        self.instruction_cycle_map.insert(0xf6, 8);
+        self.instruction_cycle_map.insert(0xf7, 16);
+        self.instruction_cycle_map.insert(0xf8, 12);
+        self.instruction_cycle_map.insert(0xf9, 8);
+        self.instruction_cycle_map.insert(0xfa, 16);
+        self.instruction_cycle_map.insert(0xfb, 4);
+        self.instruction_cycle_map.insert(0xfc, 0);
+        self.instruction_cycle_map.insert(0xfd, 0);
+        self.instruction_cycle_map.insert(0xfe, 8);
+        self.instruction_cycle_map.insert(0xff, 16);
+        // cb
+        self.instruction_cycle_map.insert(0xcb00, 8);
+        self.instruction_cycle_map.insert(0xcb01, 8);
+        self.instruction_cycle_map.insert(0xcb02, 8);
+        self.instruction_cycle_map.insert(0xcb03, 8);
+        self.instruction_cycle_map.insert(0xcb04, 8);
+        self.instruction_cycle_map.insert(0xcb05, 8);
+        self.instruction_cycle_map.insert(0xcb06, 16);
+        self.instruction_cycle_map.insert(0xcb07, 8);
+        self.instruction_cycle_map.insert(0xcb08, 8);
+        self.instruction_cycle_map.insert(0xcb09, 8);
+        self.instruction_cycle_map.insert(0xcb0a, 8);
+        self.instruction_cycle_map.insert(0xcb0b, 8);
+        self.instruction_cycle_map.insert(0xcb0c, 8);
+        self.instruction_cycle_map.insert(0xcb0d, 8);
+        self.instruction_cycle_map.insert(0xcb0e, 16);
+        self.instruction_cycle_map.insert(0xcb0f, 8);
+        self.instruction_cycle_map.insert(0xcb10, 8);
+        self.instruction_cycle_map.insert(0xcb11, 8);
+        self.instruction_cycle_map.insert(0xcb12, 8);
+        self.instruction_cycle_map.insert(0xcb13, 8);
+        self.instruction_cycle_map.insert(0xcb14, 8);
+        self.instruction_cycle_map.insert(0xcb15, 8);
+        self.instruction_cycle_map.insert(0xcb16, 16);
+        self.instruction_cycle_map.insert(0xcb17, 8);
+        self.instruction_cycle_map.insert(0xcb18, 8);
+        self.instruction_cycle_map.insert(0xcb19, 8);
+        self.instruction_cycle_map.insert(0xcb1a, 8);
+        self.instruction_cycle_map.insert(0xcb1b, 8);
+        self.instruction_cycle_map.insert(0xcb1c, 8);
+        self.instruction_cycle_map.insert(0xcb1d, 8);
+        self.instruction_cycle_map.insert(0xcb1e, 16);
+        self.instruction_cycle_map.insert(0xcb1f, 8);
+        self.instruction_cycle_map.insert(0xcb20, 8);
+        self.instruction_cycle_map.insert(0xcb21, 8);
+        self.instruction_cycle_map.insert(0xcb22, 8);
+        self.instruction_cycle_map.insert(0xcb23, 8);
+        self.instruction_cycle_map.insert(0xcb24, 8);
+        self.instruction_cycle_map.insert(0xcb25, 8);
+        self.instruction_cycle_map.insert(0xcb26, 16);
+        self.instruction_cycle_map.insert(0xcb27, 8);
+        self.instruction_cycle_map.insert(0xcb28, 8);
+        self.instruction_cycle_map.insert(0xcb29, 8);
+        self.instruction_cycle_map.insert(0xcb2a, 8);
+        self.instruction_cycle_map.insert(0xcb2b, 8);
+        self.instruction_cycle_map.insert(0xcb2c, 8);
+        self.instruction_cycle_map.insert(0xcb2d, 8);
+        self.instruction_cycle_map.insert(0xcb2e, 16);
+        self.instruction_cycle_map.insert(0xcb2f, 8);
+        self.instruction_cycle_map.insert(0xcb30, 8);
+        self.instruction_cycle_map.insert(0xcb31, 8);
+        self.instruction_cycle_map.insert(0xcb32, 8);
+        self.instruction_cycle_map.insert(0xcb33, 8);
+        self.instruction_cycle_map.insert(0xcb34, 8);
+        self.instruction_cycle_map.insert(0xcb35, 8);
+        self.instruction_cycle_map.insert(0xcb36, 16);
+        self.instruction_cycle_map.insert(0xcb37, 8);
+        self.instruction_cycle_map.insert(0xcb38, 8);
+        self.instruction_cycle_map.insert(0xcb39, 8);
+        self.instruction_cycle_map.insert(0xcb3a, 8);
+        self.instruction_cycle_map.insert(0xcb3b, 8);
+        self.instruction_cycle_map.insert(0xcb3c, 8);
+        self.instruction_cycle_map.insert(0xcb3d, 8);
+        self.instruction_cycle_map.insert(0xcb3e, 16);
+        self.instruction_cycle_map.insert(0xcb3f, 8);
+        self.instruction_cycle_map.insert(0xcb40, 8);
+        self.instruction_cycle_map.insert(0xcb41, 8);
+        self.instruction_cycle_map.insert(0xcb42, 8);
+        self.instruction_cycle_map.insert(0xcb43, 8);
+        self.instruction_cycle_map.insert(0xcb44, 8);
+        self.instruction_cycle_map.insert(0xcb45, 8);
+        self.instruction_cycle_map.insert(0xcb46, 16);
+        self.instruction_cycle_map.insert(0xcb47, 8);
+        self.instruction_cycle_map.insert(0xcb48, 8);
+        self.instruction_cycle_map.insert(0xcb49, 8);
+        self.instruction_cycle_map.insert(0xcb4a, 8);
+        self.instruction_cycle_map.insert(0xcb4b, 8);
+        self.instruction_cycle_map.insert(0xcb4c, 8);
+        self.instruction_cycle_map.insert(0xcb4d, 8);
+        self.instruction_cycle_map.insert(0xcb4e, 16);
+        self.instruction_cycle_map.insert(0xcb4f, 8);
+        self.instruction_cycle_map.insert(0xcb50, 8);
+        self.instruction_cycle_map.insert(0xcb51, 8);
+        self.instruction_cycle_map.insert(0xcb52, 8);
+        self.instruction_cycle_map.insert(0xcb53, 8);
+        self.instruction_cycle_map.insert(0xcb54, 8);
+        self.instruction_cycle_map.insert(0xcb55, 8);
+        self.instruction_cycle_map.insert(0xcb56, 16);
+        self.instruction_cycle_map.insert(0xcb57, 8);
+        self.instruction_cycle_map.insert(0xcb58, 8);
+        self.instruction_cycle_map.insert(0xcb59, 8);
+        self.instruction_cycle_map.insert(0xcb5a, 8);
+        self.instruction_cycle_map.insert(0xcb5b, 8);
+        self.instruction_cycle_map.insert(0xcb5c, 8);
+        self.instruction_cycle_map.insert(0xcb5d, 8);
+        self.instruction_cycle_map.insert(0xcb5e, 16);
+        self.instruction_cycle_map.insert(0xcb5f, 8);
+        self.instruction_cycle_map.insert(0xcb60, 8);
+        self.instruction_cycle_map.insert(0xcb61, 8);
+        self.instruction_cycle_map.insert(0xcb62, 8);
+        self.instruction_cycle_map.insert(0xcb63, 8);
+        self.instruction_cycle_map.insert(0xcb64, 8);
+        self.instruction_cycle_map.insert(0xcb65, 8);
+        self.instruction_cycle_map.insert(0xcb66, 16);
+        self.instruction_cycle_map.insert(0xcb67, 8);
+        self.instruction_cycle_map.insert(0xcb68, 8);
+        self.instruction_cycle_map.insert(0xcb69, 8);
+        self.instruction_cycle_map.insert(0xcb6a, 8);
+        self.instruction_cycle_map.insert(0xcb6b, 8);
+        self.instruction_cycle_map.insert(0xcb6c, 8);
+        self.instruction_cycle_map.insert(0xcb6d, 8);
+        self.instruction_cycle_map.insert(0xcb6e, 16);
+        self.instruction_cycle_map.insert(0xcb6f, 8);
+        self.instruction_cycle_map.insert(0xcb70, 8);
+        self.instruction_cycle_map.insert(0xcb71, 8);
+        self.instruction_cycle_map.insert(0xcb72, 8);
+        self.instruction_cycle_map.insert(0xcb73, 8);
+        self.instruction_cycle_map.insert(0xcb74, 8);
+        self.instruction_cycle_map.insert(0xcb75, 8);
+        self.instruction_cycle_map.insert(0xcb76, 16);
+        self.instruction_cycle_map.insert(0xcb77, 8);
+        self.instruction_cycle_map.insert(0xcb78, 8);
+        self.instruction_cycle_map.insert(0xcb79, 8);
+        self.instruction_cycle_map.insert(0xcb7a, 8);
+        self.instruction_cycle_map.insert(0xcb7b, 8);
+        self.instruction_cycle_map.insert(0xcb7c, 8);
+        self.instruction_cycle_map.insert(0xcb7d, 8);
+        self.instruction_cycle_map.insert(0xcb7e, 16);
+        self.instruction_cycle_map.insert(0xcb7f, 8);
+        self.instruction_cycle_map.insert(0xcb80, 8);
+        self.instruction_cycle_map.insert(0xcb81, 8);
+        self.instruction_cycle_map.insert(0xcb82, 8);
+        self.instruction_cycle_map.insert(0xcb83, 8);
+        self.instruction_cycle_map.insert(0xcb84, 8);
+        self.instruction_cycle_map.insert(0xcb85, 8);
+        self.instruction_cycle_map.insert(0xcb86, 16);
+        self.instruction_cycle_map.insert(0xcb87, 8);
+        self.instruction_cycle_map.insert(0xcb88, 8);
+        self.instruction_cycle_map.insert(0xcb89, 8);
+        self.instruction_cycle_map.insert(0xcb8a, 8);
+        self.instruction_cycle_map.insert(0xcb8b, 8);
+        self.instruction_cycle_map.insert(0xcb8c, 8);
+        self.instruction_cycle_map.insert(0xcb8d, 8);
+        self.instruction_cycle_map.insert(0xcb8e, 16);
+        self.instruction_cycle_map.insert(0xcb8f, 8);
+        self.instruction_cycle_map.insert(0xcb90, 8);
+        self.instruction_cycle_map.insert(0xcb91, 8);
+        self.instruction_cycle_map.insert(0xcb92, 8);
+        self.instruction_cycle_map.insert(0xcb93, 8);
+        self.instruction_cycle_map.insert(0xcb94, 8);
+        self.instruction_cycle_map.insert(0xcb95, 8);
+        self.instruction_cycle_map.insert(0xcb96, 16);
+        self.instruction_cycle_map.insert(0xcb97, 8);
+        self.instruction_cycle_map.insert(0xcb98, 8);
+        self.instruction_cycle_map.insert(0xcb99, 8);
+        self.instruction_cycle_map.insert(0xcb9a, 8);
+        self.instruction_cycle_map.insert(0xcb9b, 8);
+        self.instruction_cycle_map.insert(0xcb9c, 8);
+        self.instruction_cycle_map.insert(0xcb9d, 8);
+        self.instruction_cycle_map.insert(0xcb9e, 16);
+        self.instruction_cycle_map.insert(0xcb9f, 8);
+        self.instruction_cycle_map.insert(0xcba0, 8);
+        self.instruction_cycle_map.insert(0xcba1, 8);
+        self.instruction_cycle_map.insert(0xcba2, 8);
+        self.instruction_cycle_map.insert(0xcba3, 8);
+        self.instruction_cycle_map.insert(0xcba4, 8);
+        self.instruction_cycle_map.insert(0xcba5, 8);
+        self.instruction_cycle_map.insert(0xcba6, 16);
+        self.instruction_cycle_map.insert(0xcba7, 8);
+        self.instruction_cycle_map.insert(0xcba8, 8);
+        self.instruction_cycle_map.insert(0xcba9, 8);
+        self.instruction_cycle_map.insert(0xcbaa, 8);
+        self.instruction_cycle_map.insert(0xcbab, 8);
+        self.instruction_cycle_map.insert(0xcbac, 8);
+        self.instruction_cycle_map.insert(0xcbad, 8);
+        self.instruction_cycle_map.insert(0xcbae, 16);
+        self.instruction_cycle_map.insert(0xcbaf, 8);
+        self.instruction_cycle_map.insert(0xcbb0, 8);
+        self.instruction_cycle_map.insert(0xcbb1, 8);
+        self.instruction_cycle_map.insert(0xcbb2, 8);
+        self.instruction_cycle_map.insert(0xcbb3, 8);
+        self.instruction_cycle_map.insert(0xcbb4, 8);
+        self.instruction_cycle_map.insert(0xcbb5, 8);
+        self.instruction_cycle_map.insert(0xcbb6, 16);
+        self.instruction_cycle_map.insert(0xcbb7, 8);
+        self.instruction_cycle_map.insert(0xcbb8, 8);
+        self.instruction_cycle_map.insert(0xcbb9, 8);
+        self.instruction_cycle_map.insert(0xcbba, 8);
+        self.instruction_cycle_map.insert(0xcbbb, 8);
+        self.instruction_cycle_map.insert(0xcbbc, 8);
+        self.instruction_cycle_map.insert(0xcbbd, 8);
+        self.instruction_cycle_map.insert(0xcbbe, 16);
+        self.instruction_cycle_map.insert(0xcbbf, 8);
+        self.instruction_cycle_map.insert(0xcbc0, 8);
+        self.instruction_cycle_map.insert(0xcbc1, 8);
+        self.instruction_cycle_map.insert(0xcbc2, 8);
+        self.instruction_cycle_map.insert(0xcbc3, 8);
+        self.instruction_cycle_map.insert(0xcbc4, 8);
+        self.instruction_cycle_map.insert(0xcbc5, 8);
+        self.instruction_cycle_map.insert(0xcbc6, 16);
+        self.instruction_cycle_map.insert(0xcbc7, 8);
+        self.instruction_cycle_map.insert(0xcbc8, 8);
+        self.instruction_cycle_map.insert(0xcbc9, 8);
+        self.instruction_cycle_map.insert(0xcbca, 8);
+        self.instruction_cycle_map.insert(0xcbcb, 8);
+        self.instruction_cycle_map.insert(0xcbcc, 8);
+        self.instruction_cycle_map.insert(0xcbcd, 8);
+        self.instruction_cycle_map.insert(0xcbce, 16);
+        self.instruction_cycle_map.insert(0xcbcf, 8);
+        self.instruction_cycle_map.insert(0xcbd0, 8);
+        self.instruction_cycle_map.insert(0xcbd1, 8);
+        self.instruction_cycle_map.insert(0xcbd2, 8);
+        self.instruction_cycle_map.insert(0xcbd3, 8);
+        self.instruction_cycle_map.insert(0xcbd4, 8);
+        self.instruction_cycle_map.insert(0xcbd5, 8);
+        self.instruction_cycle_map.insert(0xcbd6, 16);
+        self.instruction_cycle_map.insert(0xcbd7, 8);
+        self.instruction_cycle_map.insert(0xcbd8, 8);
+        self.instruction_cycle_map.insert(0xcbd9, 8);
+        self.instruction_cycle_map.insert(0xcbda, 8);
+        self.instruction_cycle_map.insert(0xcbdb, 8);
+        self.instruction_cycle_map.insert(0xcbdc, 8);
+        self.instruction_cycle_map.insert(0xcbdd, 8);
+        self.instruction_cycle_map.insert(0xcbde, 16);
+        self.instruction_cycle_map.insert(0xcbdf, 8);
+        self.instruction_cycle_map.insert(0xcbe0, 8);
+        self.instruction_cycle_map.insert(0xcbe1, 8);
+        self.instruction_cycle_map.insert(0xcbe2, 8);
+        self.instruction_cycle_map.insert(0xcbe3, 8);
+        self.instruction_cycle_map.insert(0xcbe4, 8);
+        self.instruction_cycle_map.insert(0xcbe5, 8);
+        self.instruction_cycle_map.insert(0xcbe6, 16);
+        self.instruction_cycle_map.insert(0xcbe7, 8);
+        self.instruction_cycle_map.insert(0xcbe8, 8);
+        self.instruction_cycle_map.insert(0xcbe9, 8);
+        self.instruction_cycle_map.insert(0xcbea, 8);
+        self.instruction_cycle_map.insert(0xcbeb, 8);
+        self.instruction_cycle_map.insert(0xcbec, 8);
+        self.instruction_cycle_map.insert(0xcbed, 8);
+        self.instruction_cycle_map.insert(0xcbee, 16);
+        self.instruction_cycle_map.insert(0xcbef, 8);
+        self.instruction_cycle_map.insert(0xcbf0, 8);
+        self.instruction_cycle_map.insert(0xcbf1, 8);
+        self.instruction_cycle_map.insert(0xcbf2, 8);
+        self.instruction_cycle_map.insert(0xcbf3, 8);
+        self.instruction_cycle_map.insert(0xcbf4, 8);
+        self.instruction_cycle_map.insert(0xcbf5, 8);
+        self.instruction_cycle_map.insert(0xcbf6, 16);
+        self.instruction_cycle_map.insert(0xcbf7, 8);
+        self.instruction_cycle_map.insert(0xcbf8, 8);
+        self.instruction_cycle_map.insert(0xcbf9, 8);
+        self.instruction_cycle_map.insert(0xcbfa, 8);
+        self.instruction_cycle_map.insert(0xcbfb, 8);
+        self.instruction_cycle_map.insert(0xcbfc, 8);
+        self.instruction_cycle_map.insert(0xcbfd, 8);
+        self.instruction_cycle_map.insert(0xcbfe, 16);
+        self.instruction_cycle_map.insert(0xcbff, 8);
     }
 
 }
