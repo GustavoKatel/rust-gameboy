@@ -44,10 +44,17 @@ impl GBGpu {
 
                     self.cycles = 0;
                     self.drawing_line += 1;
+                    // LY mem register. It stores the current line
+                    cpu.get_mem_mut().put(0xff44, self.drawing_line as u8);
 
                     // check if we reached the last line. If so, enter vblank and draw the frame
                     if self.drawing_line == 143 {
                         // Enter vblank
+                        // is VBLANK interrupt enabled?
+                        if cpu.is_interrupt_enabled(0) {
+                            // request vblank interrupt
+                            cpu.set_interrupt_request(0, true);
+                        }
                         self.mode = GBGpuMode::VBLANK;
                         // TODO: draw the frame. SDL(?) id:7
                     } else {
@@ -63,11 +70,15 @@ impl GBGpu {
                 if self.cycles >= 456 {
                     self.cycles = 0;
                     self.drawing_line += 1;
+                    // LY mem register. It stores the current line
+                    cpu.get_mem_mut().put(0xff44, self.drawing_line as u8);
 
                     if self.drawing_line > 153 {
                         // Restart scanning modes
                         self.mode = GBGpuMode::OAM;
                         self.drawing_line = 0;
+                        // LY mem register. It stores the current line
+                        cpu.get_mem_mut().put(0xff44, self.drawing_line as u8);
                     }
                 }
             },

@@ -71,6 +71,31 @@ impl GBCpu {
         self.exec_next_op();
     }
 
+    pub fn is_interrupt_enabled(&self, ipos: usize) -> bool {
+        let flags = BitVec::from_bytes(&[ self.mem.get(0xffff as usize) ]);
+        flags.get(7-ipos).unwrap()
+    }
+
+    pub fn interrupt_enable(&mut self, ipos: usize, enable: bool) -> bool {
+        let mut flags = BitVec::from_bytes(&[ self.mem.get(0xffff as usize) ]);
+        let prev = flags.get(7-ipos).unwrap();
+
+        flags.set(7-ipos, enable);
+        self.mem.put(0xffff as usize, flags.to_bytes()[0] as u8);
+
+        prev
+    }
+
+    pub fn set_interrupt_request(&mut self, ipos: usize, request: bool) -> bool {
+        let mut requests = BitVec::from_bytes(&[ self.mem.get(0xff0f as usize) ]);
+        let prev = requests.get(7-ipos).unwrap();
+
+        requests.set(7-ipos, request);
+        self.mem.put(0xff0f as usize, requests.to_bytes()[0] as u8);
+
+        prev
+    }
+
     fn stack_push(&mut self, value: u16) {
 
         // most significant part
