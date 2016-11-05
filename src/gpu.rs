@@ -36,16 +36,16 @@ impl GBGpu {
         self.cycles += cpu.get_last_op_cycles();
 
         match self.mode {
+            // TODO: check 0xff41 (stat flags)
             // just rendered a line, going back to the left side of the screen
             GBGpuMode::HBLANK => {
-
                 // HBLANK duration in cycles: 204
                 if self.cycles >= 204 {
 
                     self.cycles = 0;
                     self.drawing_line += 1;
                     // LY mem register. It stores the current line
-                    cpu.get_mem_mut().put(0xff44, self.drawing_line as u8);
+                    cpu.set_memreg_ly(self.drawing_line as u8);
 
                     // check if we reached the last line. If so, enter vblank and draw the frame
                     if self.drawing_line == 143 {
@@ -71,14 +71,14 @@ impl GBGpu {
                     self.cycles = 0;
                     self.drawing_line += 1;
                     // LY mem register. It stores the current line
-                    cpu.get_mem_mut().put(0xff44, self.drawing_line as u8);
+                    cpu.set_memreg_ly(self.drawing_line as u8);
 
                     if self.drawing_line > 153 {
                         // Restart scanning modes
                         self.mode = GBGpuMode::OAM;
                         self.drawing_line = 0;
                         // LY mem register. It stores the current line
-                        cpu.get_mem_mut().put(0xff44, self.drawing_line as u8);
+                        cpu.set_memreg_ly(self.drawing_line as u8);
                     }
                 }
             },

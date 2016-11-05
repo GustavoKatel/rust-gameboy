@@ -67,6 +67,16 @@ impl GBCpu {
         self.last_op_cycles
     }
 
+    pub fn set_memreg_ly(&mut self, value: u8) {
+        let lyc = self.mem.get(0xff45 as usize);
+        let mut stat_flags = BitVec::from_bytes(&[ self.mem.get(0xff41 as usize) ]);
+
+        self.mem.put(0xff44 as usize, value);
+
+        stat_flags.set(7-6, value == lyc);
+        self.mem.put(0xff41 as usize, stat_flags.to_bytes()[0] as u8);
+    }
+
     pub fn step(&mut self) {
         self.exec_next_op();
     }
