@@ -112,19 +112,44 @@ impl GBCpu {
         let enabled_flags = BitVec::from_bytes(&[ self.mem.get(0xffff as usize) ]);
         let mut requests = BitVec::from_bytes(&[ self.mem.get(0xff0f as usize) ]);
 
-        let mut pos = 0; // vblank
-        if enabled_flags.get(7-pos).unwrap() && requests.get(7-pos).unwrap() {
+        // check vblank
+        if enabled_flags.get(7-0).unwrap() && requests.get(7-0).unwrap() {
             let pc = self.pc;
             self.stack_push(pc);
-            self.do_interrupt_vblank();
+            self.pc = 0x40;
+            requests.set(7-0, false);
+
+        // check lcdstat
+        } else if enabled_flags.get(7-1).unwrap() && requests.get(7-1).unwrap() {
+            let pc = self.pc;
+            self.stack_push(pc);
+            self.pc = 0x48;
+            requests.set(7-1, false);
+
+        // check timer overflow
+        } else if enabled_flags.get(7-2).unwrap() && requests.get(7-2).unwrap() {
+            let pc = self.pc;
+            self.stack_push(pc);
+            requests.set(7-2, false);
+            self.pc = 0x50;
+
+        // check serial transfer
+        } else if enabled_flags.get(7-3).unwrap() && requests.get(7-3).unwrap() {
+            let pc = self.pc;
+            self.stack_push(pc);
+            requests.set(7-3, false);
+            self.pc = 0x58;
+
+        // check high-low pin change
+        } else if enabled_flags.get(7-4).unwrap() && requests.get(7-4).unwrap() {
+            let pc = self.pc;
+            self.stack_push(pc);
+            requests.set(7-4, false);
+            self.pc = 0x60;
         }
 
-        // TODO: do the rest of thes interrupts
-    }
-
-    fn do_interrupt_vblank(&mut self) {
-        self.pc = 0x40;
-        // TODO: how many cycles? 12 (call)?
+        // disable requests
+        self.mem.put(0xff0f as usize, requests.to_bytes()[0] as u8);
     }
 
     fn stack_push(&mut self, value: u16) {
