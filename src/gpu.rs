@@ -56,7 +56,7 @@ impl GBGpu {
                             cpu.set_interrupt_request(0, true);
                         }
                         self.mode = GBGpuMode::VBLANK;
-                        // TODO: draw the frame. SDL(?) id:7
+                        // TODO: draw the frame. SDL(?)
                     } else {
                         // just one more line, start reading the sprites
                         self.mode = GBGpuMode::OAM;
@@ -96,7 +96,7 @@ impl GBGpu {
                     self.mode = GBGpuMode::HBLANK;
 
                     // Write a scanline to the framebuffer
-                    // TODO: draw line id:8
+                    // TODO: draw line
                 }
             },
         }

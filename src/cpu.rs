@@ -79,6 +79,7 @@ impl GBCpu {
 
     pub fn step(&mut self) {
         self.exec_next_op();
+        self.do_interrupt();
     }
 
     pub fn is_interrupt_enabled(&self, ipos: usize) -> bool {
@@ -104,6 +105,26 @@ impl GBCpu {
         self.mem.put(0xff0f as usize, requests.to_bytes()[0] as u8);
 
         prev
+    }
+
+    fn do_interrupt(&mut self) {
+
+        let enabled_flags = BitVec::from_bytes(&[ self.mem.get(0xffff as usize) ]);
+        let mut requests = BitVec::from_bytes(&[ self.mem.get(0xff0f as usize) ]);
+
+        let mut pos = 0; // vblank
+        if enabled_flags.get(7-pos).unwrap() && requests.get(7-pos).unwrap() {
+            let pc = self.pc;
+            self.stack_push(pc);
+            self.do_interrupt_vblank();
+        }
+
+        // TODO: do the rest of thes interrupts
+    }
+
+    fn do_interrupt_vblank(&mut self) {
+        self.pc = 0x40;
+        // TODO: how many cycles? 12 (call)?
     }
 
     fn stack_push(&mut self, value: u16) {
@@ -564,7 +585,7 @@ impl GBCpu {
 
     fn op_ld<'a> (&mut self, args: &'a Vec<&'a str>) {
 
-        // TODO:0 check affected flags when op (0xF8) LD HL,SP+r8 id:0
+        // TODO: check affected flags when op (0xF8) LD HL,SP+r8
 
         println!("LD {}", args.join(","));
         let cycles = self.instruction_cycle_map.get(&(self.mem.get(self.pc as usize) as u16)).unwrap().clone();
@@ -584,7 +605,7 @@ impl GBCpu {
                 let argp = self.arg_parse(args[1].to_string());
                 let data = self.data_parse(&argp);
 
-                // NOTE: copy to an address? id:6
+                // NOTE: copy to an address?
                 if addr {
                     self.mem.put(self.registers.get(&name) as usize, data as u8);
                 } else {

@@ -66,7 +66,7 @@ impl SDLDisplay {
                 | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     self.events.push(SDLDisplayEvent::Quit);
                 },
-                // TODO: joystick id:9
+                // TODO: joystick
                 _ => {}
             }
         }
